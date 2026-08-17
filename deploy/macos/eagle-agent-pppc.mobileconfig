@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Eagle Agent — PPPC (Privacy Preferences Policy Control) configuration profile.
+
+  Pre-grants the agent's privacy access on MDM-managed Macs so users get NO prompt.
+  This is Apple's sanctioned mechanism for managed devices — it does NOT bypass any
+  security control; it records the org's decision to trust its own management software.
+
+  BEFORE USE, replace every __PLACEHOLDER__ (see deploy/macos/README.md):
+    __UUID_PAYLOAD__ / __UUID_PROFILE__ : run `uuidgen` for each
+    __TEAM_ID__                         : your Apple Developer Team ID
+    __CODE_REQUIREMENT__                : output of `codesign -dr - "Eagle Agent.app"`
+  The agent must be packaged as a SIGNED .app with CFBundleIdentifier com.eagle.agent
+  (bare SEA binaries have no bundle id / stable identity for PPPC).
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>PayloadContent</key>
+  <array>
+    <dict>
+      <key>PayloadType</key>
+      <string>com.apple.TCC.configuration-profile-policy</string>
+      <key>PayloadIdentifier</key>
+      <string>com.eagle.agent.pppc</string>
+      <key>PayloadUUID</key>
+      <string>__UUID_PAYLOAD__</string>
+      <key>PayloadVersion</key>
+      <integer>1</integer>
+      <key>PayloadDisplayName</key>
+      <string>Eagle Agent — Privacy Preferences</string>
+      <key>PayloadOrganization</key>
+      <string>Eagle</string>
+      <key>Services</key>
+      <dict>
+
+        <!-- Screen Recording (screenshots + live view). macOS 11+; managed/supervised Macs. -->
+        <key>ScreenCapture</key>
+        <array>
+          <dict>
+            <key>Identifier</key>
+            <string>com.eagle.agent</string>
+            <key>IdentifierType</key>
+            <string>bundleID</string>
+            <key>CodeRequirement</key>
+            <string>__CODE_REQUIREMENT__</string>
+            <key>Authorization</key>
+            <string>Allow</string>
+          </dict>
+        </array>
+
+        <!-- AppleEvents → System Events: for the frontmost-app check (osascript). -->
+        <key>AppleEvents</key>
+        <array>
+          <dict>
+            <key>Identifier</key>
+            <string>com.eagle.agent</string>
+            <key>IdentifierType</key>
+            <string>bundleID</string>
+            <key>CodeRequirement</key>
+            <string>__CODE_REQUIREMENT__</string>
+            <key>AEReceiverIdentifier</key>
+            <string>com.apple.systemevents</string>
+            <key>AEReceiverIdentifierType</key>
+            <string>bundleID</string>
+            <key>AEReceiverCodeRequirement</key>
+            <string>identifier "com.apple.systemevents" and anchor apple</string>
+            <key>Allowed</key>
+            <true/>
+          </dict>
+        </array>
+
+        <!-- Accessibility: optional, for future window-title / AX-based reads. -->
+        <key>Accessibility</key>
+        <array>
+          <dict>
+            <key>Identifier</key>
+            <string>com.eagle.agent</string>
+            <key>IdentifierType</key>
+            <string>bundleID</string>
+            <key>CodeRequirement</key>
+            <string>__CODE_REQUIREMENT__</string>
+            <key>Allowed</key>
+            <true/>
+          </dict>
+        </array>
+
+      </dict>
+    </dict>
+  </array>
+  <key>PayloadType</key>
+  <string>Configuration</string>
+  <key>PayloadIdentifier</key>
+  <string>com.eagle.agent.pppc.profile</string>
+  <key>PayloadUUID</key>
+  <string>__UUID_PROFILE__</string>
+  <key>PayloadVersion</key>
+  <integer>1</integer>
+  <key>PayloadDisplayName</key>
+  <string>Eagle Agent Privacy (PPPC)</string>
+  <key>PayloadDescription</key>
+  <string>Grants the Eagle monitoring agent Screen Recording and Automation on managed Macs.</string>
+  <key>PayloadOrganization</key>
+  <string>Eagle</string>
+  <key>PayloadScope</key>
+  <string>System</string>
+</dict>
+</plist>

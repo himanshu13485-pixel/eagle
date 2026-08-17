@@ -1,0 +1,26 @@
+{
+  "name": "eagle",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Eagle — employee monitoring & productivity platform (screenshots, live screen, app/website usage, timesheets).",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev -w @eagle/api",
+    "dev:dashboard": "npm run dev -w @eagle/dashboard",
+    "dev:web": "npm run dev -w @eagle/web",
+    "agent": "npm run start -w @eagle/agent --",
+    "build": "npm run build --workspaces --if-present",
+    "db:push": "npm run db:push -w @eagle/api",
+    "db:migrate": "npm run db:migrate -w @eagle/api",
+    "db:seed": "npm run db:seed -w @eagle/api",
+    "db:generate": "npm run db:generate -w @eagle/api",
+    "infra:up": "docker compose -f infra/docker-compose.yml up -d",
+    "infra:down": "docker compose -f infra/docker-compose.yml down"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

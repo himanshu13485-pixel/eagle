@@ -1,0 +1,23 @@
+{
+  "name": "@eagle/agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Eagle monitoring agent — runs on a monitored PC: screenshots, app/website usage, idle/active tracking, presence.",
+  "scripts": {
+    "start": "ts-node src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "run:built": "node dist/index.js",
+    "bundle": "esbuild src/index.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist-bin/agent-bundle.cjs --external:bufferutil --external:utf-8-validate",
+    "build:exe": "node scripts/build-exe.mjs"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.10",
+    "esbuild": "^0.24.0",
+    "postject": "^1.0.0-alpha.6",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  }
+}

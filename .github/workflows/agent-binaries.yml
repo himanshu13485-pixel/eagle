@@ -1,0 +1,34 @@
+name: Build agent binaries
+
+# Builds the standalone agent binary on each OS (SEA uses the runner's own node).
+# macOS binaries can only be produced on a macOS runner — this is that runner.
+# Download the artifacts and place them on the server:
+#   eagle-agent.exe → apps/agent/dist-bin/eagle-agent.exe   (or AGENT_EXE_PATH)
+#   eagle-agent     → apps/agent/dist-bin/eagle-agent        (or AGENT_EXE_MAC_PATH)
+on:
+  workflow_dispatch:
+  push:
+    tags: ["agent-v*"]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: eagle-agent.exe
+          - os: macos-latest
+            artifact: eagle-agent
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - run: npm run build:exe -w @eagle/agent
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: apps/agent/dist-bin/${{ matrix.artifact }}
+          if-no-files-found: error

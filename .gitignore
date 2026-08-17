@@ -1,0 +1,20 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+*.log
+.DS_Store
+coverage/
+.turbo/
+.vite/
+apps/agent/.eagle/
+apps/agent/buffer/
+*.tsbuildinfo
+# local dev data
+apps/api/prisma/*.db
+apps/api/prisma/*.db-journal
+apps/api/storage/
+*.db
+# built agent binaries (eagle-agent.exe ~92MB, ffmpeg.exe ~98MB)
+apps/agent/dist-bin/

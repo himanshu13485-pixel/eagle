@@ -1,0 +1,55 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: eagle-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: eagle
+      POSTGRES_PASSWORD: eagle
+      POSTGRES_DB: eagle
+    ports:
+      - "5432:5432"
+    volumes:
+      - eagle_pg:/var/lib/postgresql/data
+
+  redis:
+    # 7.x satisfies the BullMQ >=6.2 requirement (avoids the local 5.0 stall issue).
+    image: redis:7-alpine
+    container_name: eagle-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - eagle_redis:/data
+
+  minio:
+    image: minio/minio:latest
+    container_name: eagle-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: eagle
+      MINIO_ROOT_PASSWORD: eagle-secret
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # web console
+    volumes:
+      - eagle_minio:/data
+
+  # Creates the screenshots bucket on first boot.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until (/usr/bin/mc alias set eagle http://minio:9000 eagle eagle-secret) do echo waiting for minio; sleep 2; done;
+      /usr/bin/mc mb -p eagle/eagle-screenshots;
+      /usr/bin/mc anonymous set none eagle/eagle-screenshots;
+      exit 0;
+      "
+
+volumes:
+  eagle_pg:
+  eagle_redis:
+  eagle_minio:

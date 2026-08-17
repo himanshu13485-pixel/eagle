@@ -1,0 +1,275 @@
+// Local dev uses SQLite (zero-infra). For production, switch provider to
+// "postgresql" and DATABASE_URL to a Postgres instance — the models below are
+// written to be portable (string-typed status/role/tier fields validated at the
+// app layer via @eagle/shared enums). SQLite doesn't support Prisma enums or
+// scalar lists, so those are stored as strings.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id            String         @id @default(cuid())
+  name          String
+  status        String         @default("ACTIVE") // ACTIVE | SUSPENDED (set by platform admins)
+  salespersonId String? // the PlatformAdmin (salesperson/admin) who owns this client
+  salesperson   PlatformAdmin? @relation(fields: [salespersonId], references: [id], onDelete: SetNull)
+  createdAt     DateTime       @default(now())
+
+  users        User[]
+  employees    Employee[]
+  teams        Team[]
+  shifts       Shift[]
+  setting      TrackingSetting?
+  subscription Subscription?
+  supportReqs  SupportRequest[]
+  dataRequests DataRequest[]
+}
+
+// A checkout order (Cashfree). Applied to the org's Subscription once PAID.
+model PaymentOrder {
+  id               String    @id @default(cuid())
+  orgId            String
+  cfOrderId        String    @unique // Cashfree order_id
+  amount           Float
+  currency         String    @default("INR")
+  tier             String
+  cycle            String // MONTHLY | ANNUALLY
+  seats            Int
+  status           String    @default("CREATED") // CREATED | PAID | FAILED
+  paymentSessionId String?
+  createdAt        DateTime  @default(now())
+  paidAt           DateTime?
+}
+
+// Notifications — client-facing (audience ORG) or internal staff (audience PLATFORM).
+model Notification {
+  id        String   @id @default(cuid())
+  audience  String // ORG | PLATFORM
+  orgId     String? // ORG: null = broadcast to all clients; else one org
+  role      String? // PLATFORM: null = all staff; else one role (SUPER_ADMIN/SUB_ADMIN/SALESPERSON)
+  adminId   String? // PLATFORM: target one specific admin (optional)
+  kind      String   @default("INFO") // INFO | UPDATE | ANNOUNCEMENT | ALERT
+  title     String
+  body      String
+  createdBy String? // author email or "system"
+  createdAt DateTime @default(now())
+
+  reads NotificationRead[]
+
+  @@index([audience, orgId])
+}
+
+// A registered WhatsApp/Telegram destination that notifications can also fan out to.
+// scope=ORG (orgId set) is a client's own recipient; scope=PLATFORM is an internal recipient.
+model NotificationChannel {
+  id        String   @id @default(cuid())
+  scope     String   @default("ORG") // ORG | PLATFORM
+  orgId     String? // set for ORG scope
+  type      String // TELEGRAM | WHATSAPP
+  target    String // telegram chat_id or whatsapp phone (E.164, e.g. +15551234567)
+  label     String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([scope, orgId])
+}
+
+// One row per (notification, reader) that has been read. readerId = User.id or PlatformAdmin.id.
+model NotificationRead {
+  id             String       @id @default(cuid())
+  notificationId String
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  readerId       String
+  createdAt      DateTime     @default(now())
+
+  @@unique([notificationId, readerId])
+}
+
+// Platform-level staff who run the whole SaaS (above any single client org).
+model PlatformAdmin {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  name         String
+  passwordHash String
+  role         String         @default("SALESPERSON") // SUPER_ADMIN | SUB_ADMIN | SALESPERSON
+  active       Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  clients      Organization[]
+}
+
+model User {
+  id           String       @id @default(cuid())
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  email        String       @unique
+  name         String
+  passwordHash String
+  role         String       @default("OWNER") // UserRole
+  createdAt    DateTime     @default(now())
+}
+
+model Team {
+  id        String       @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime     @default(now())
+  employees Employee[]
+}
+
+model Employee {
+  id               String       @id @default(cuid())
+  orgId            String
+  org              Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  teamId           String?
+  team             Team?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  name             String
+  email            String?
+  role             String       @default("EMPLOYEE") // EMPLOYEE | MANAGER | TEAM_LEAD (designation)
+  avatarKey        String? // uploaded profile image storage key; null = initials avatar
+  status           String       @default("OFFLINE") // PresenceStatus
+  active           Boolean      @default(true) // soft on/off; false = paused, data kept
+  lastActiveAt     DateTime?
+  lastScreenshotAt DateTime?
+  lastApp          String?
+  settingsJson     String? // per-employee tracking override (JSON); falls back to org TrackingSetting
+  createdAt        DateTime     @default(now())
+
+  devices     Device[]
+  screenshots Screenshot[]
+  activities  ActivitySession[]
+
+  @@index([orgId])
+}
+
+model Device {
+  id              String    @id @default(cuid())
+  orgId           String
+  employeeId      String
+  employee        Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  hostname        String?
+  platform        String? // DevicePlatform
+  agentVersion    String?
+  enrollToken     String?   @unique
+  enrolled        Boolean   @default(false)
+  deviceTokenHash String?
+  status          String    @default("OFFLINE") // PresenceStatus
+  lastSeenAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  screenshots Screenshot[]
+
+  @@index([employeeId])
+}
+
+model Screenshot {
+  id         String   @id @default(cuid())
+  orgId      String
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  deviceId   String
+  device     Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  capturedAt DateTime
+  trigger    String   @default("PERIODIC") // ScreenshotTrigger
+  app        String?
+  url        String?
+  isIdle     Boolean  @default(false)
+  s3Key      String
+  createdAt  DateTime @default(now())
+
+  @@index([orgId, capturedAt])
+  @@index([employeeId, capturedAt])
+}
+
+model ActivitySession {
+  id          String   @id @default(cuid())
+  orgId       String
+  employeeId  String
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  type        String // UsageType
+  name        String
+  startedAt   DateTime
+  endedAt     DateTime
+  isIdle      Boolean  @default(false)
+  durationSec Int
+  createdAt   DateTime @default(now())
+
+  @@index([orgId, startedAt])
+  @@index([employeeId, startedAt])
+}
+
+model TrackingSetting {
+  id                    String       @id @default(cuid())
+  orgId                 String       @unique
+  org                   Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  periodicScreenshots   Boolean      @default(true)
+  screenshotIntervalMin Int          @default(10)
+  appSwitchScreenshots  Boolean      @default(true)
+  appSwitchDelayMin     Int          @default(1)
+  webcamPhotos          Boolean      @default(false)
+  idleAfterMin          Int          @default(5)
+  trackingMode          String       @default("VISIBLE") // TrackingMode
+  strictTimeTracking    Boolean      @default(true)
+  reportRecipients      String       @default("") // CSV of emails that receive scheduled reports (max 5)
+  updatedAt             DateTime     @updatedAt
+}
+
+model Shift {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name        String
+  timezone    String       @default("UTC")
+  startTime   String       @default("09:00")
+  endTime     String       @default("17:00")
+  workingDays String       @default("1,2,3,4,5") // CSV of ISO weekday numbers
+  createdAt   DateTime     @default(now())
+}
+
+model Subscription {
+  id         String       @id @default(cuid())
+  orgId      String       @unique
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  tier       String       @default("PROFESSIONAL") // PlanTier
+  cycle      String       @default("ANNUALLY") // BillingCycle
+  seats      Int          @default(10)
+  validUntil DateTime?
+  createdAt  DateTime     @default(now())
+}
+
+model SupportRequest {
+  id           String       @id @default(cuid())
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  kind         String       @default("SUPPORT") // SUPPORT | DEMO | FEEDBACK
+  subject      String
+  description  String
+  contactName  String?
+  contactPhone String?
+  contactEmail String?
+  createdBy    String? // manager email who opened it
+  status       String       @default("OPEN")
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @default(now()) @updatedAt
+}
+
+model DataRequest {
+  id               String       @id @default(cuid())
+  orgId            String
+  org              Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  action           String // EXPORT | DELETE | RETENTION_SCREENSHOTS | RETENTION_LOGS | PT_ROLLUP
+  dataType         String       @default("SCREENSHOTS") // SCREENSHOTS | LOGS
+  source           String       @default("USER") // USER | SYSTEM (automated retention/rollup jobs)
+  targetEmployeeId String?
+  targetTeamId     String?
+  rangeFrom        DateTime?
+  rangeTo          DateTime?
+  status           String       @default("PENDING") // PENDING | PROCESSING | COMPLETED | FAILED | CANCELLED
+  createdAt        DateTime     @default(now())
+}
