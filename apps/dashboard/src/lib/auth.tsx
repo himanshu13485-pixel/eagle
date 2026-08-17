@@ -6,6 +6,7 @@ interface AuthState {
   user: AuthUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  register: (orgName: string, ownerName: string, email: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
@@ -34,17 +35,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     setTokens(res.accessToken, res.refreshToken);
     localStorage.setItem("eagle.user", JSON.stringify(res.user));
+    localStorage.removeItem("eagle.actingAs"); // a real login is never an admin "act as" session
+    setUser(res.user);
+  }
+
+  async function register(orgName: string, ownerName: string, email: string, password: string) {
+    const res = await api<LoginResponse>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ orgName, ownerName, email, password }),
+    });
+    setTokens(res.accessToken, res.refreshToken);
+    localStorage.setItem("eagle.user", JSON.stringify(res.user));
+    localStorage.removeItem("eagle.actingAs");
     setUser(res.user);
   }
 
   function logout() {
     clearTokens();
     localStorage.removeItem("eagle.user");
+    localStorage.removeItem("eagle.actingAs");
     setUser(null);
     location.href = "/login";
   }
 
-  return <Ctx.Provider value={{ user, loading, login, logout }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ user, loading, login, register, logout }}>{children}</Ctx.Provider>;
 }
 
 export function useAuth() {

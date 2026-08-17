@@ -8,6 +8,14 @@ const ROLE_LABEL: Record<string, string> = { SUPER_ADMIN: "Super Admin", SUB_ADM
 const NAV = [
   { to: "/admin", label: "Overview", icon: "▦", end: true },
   { to: "/admin/clients", label: "Clients", icon: "🏢", end: false },
+  { to: "/admin/live", label: "Live Monitoring", icon: "📹", end: false },
+  { to: "/admin/screenshots", label: "Screenshots", icon: "📸", end: false },
+  { to: "/admin/replay", label: "Work Replay", icon: "⏪", end: false },
+  { to: "/admin/data", label: "Data Management", icon: "🗄️", end: false },
+  { to: "/admin/reports", label: "Reports", icon: "📊", end: false },
+  { to: "/admin/subscriptions", label: "Subscriptions", icon: "💳", end: false },
+  { to: "/admin/invoices", label: "Invoices", icon: "🧾", end: false },
+  { to: "/admin/support", label: "Support Inbox", icon: "🎧", end: false },
   { to: "/admin/notifications", label: "Notifications", icon: "🔔", end: false, notSales: true },
   { to: "/admin/staff", label: "Staff", icon: "👤", end: false, superOnly: true },
 ];

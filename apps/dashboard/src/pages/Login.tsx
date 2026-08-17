@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { BRAND } from "@eagle/shared";
 import { useAuth } from "../lib/auth";
 
@@ -69,6 +69,10 @@ export function Login() {
           >
             {busy ? "Signing in…" : "Login"}
           </button>
+          <div className="flex items-center justify-between text-sm">
+            <Link to="/forgot" className="text-amber-400 hover:underline">Forgot password?</Link>
+            <span className="text-gray-400">New here? <Link to="/signup" className="font-semibold text-amber-400 hover:underline">Start free trial</Link></span>
+          </div>
           <p className="text-xs text-gray-400">Demo: owner@eagle.test / eagle1234</p>
         </form>
       </div>

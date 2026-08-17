@@ -3,6 +3,7 @@ import { PlanTier, type PlanDefinition } from "@eagle/shared";
 import { PageHeader } from "../components/Layout";
 import { StatCard } from "../components/ReportControls";
 import { api } from "../lib/api";
+import { InvoiceModal, money, type Invoice } from "../components/InvoiceModal";
 
 interface BillingInfo {
   tier: PlanTier; cycle: string; seats: number; validUntil: string | null;
@@ -29,12 +30,15 @@ function loadCashfree(): Promise<any> {
 export function Billing() {
   const [b, setB] = useState<BillingInfo | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [viewInv, setViewInv] = useState<Invoice | null>(null);
   const [msg, setMsg] = useState("");
   const [checkoutTier, setCheckoutTier] = useState<PlanTier | null>(null);
 
   function load() {
     api<BillingInfo>("/billing").then(setB).catch(() => setB(null));
     api<Order[]>("/billing/orders").then(setOrders).catch(() => setOrders([]));
+    api<Invoice[]>("/billing/invoices").then(setInvoices).catch(() => setInvoices([]));
   }
   useEffect(load, []);
 
@@ -94,6 +98,27 @@ export function Billing() {
         })}
       </div>
 
+      {invoices.length > 0 && (
+        <div className="mt-8 overflow-hidden rounded-2xl bg-white shadow-sm">
+          <h3 className="p-5 pb-3 text-lg font-bold text-gray-900">Invoices</h3>
+          <table className="w-full text-left text-sm">
+            <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500"><tr><th className="px-5 py-3">Invoice #</th><th className="px-5 py-3">Plan</th><th className="px-5 py-3">Amount</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Issued</th><th className="px-5 py-3"></th></tr></thead>
+            <tbody className="divide-y divide-gray-100">
+              {invoices.map((inv) => (
+                <tr key={inv.id} className="hover:bg-gray-50/60">
+                  <td className="px-5 py-3 font-mono text-xs font-semibold text-brand">{inv.number}</td>
+                  <td className="px-5 py-3 text-gray-700">{inv.tier} · {inv.seats} seats · {inv.cycle === "MONTHLY" ? "monthly" : "yearly"}</td>
+                  <td className="px-5 py-3 font-semibold text-gray-800">{money(inv.amount, inv.currency)}</td>
+                  <td className="px-5 py-3"><span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${inv.status === "PAID" ? "bg-green-100 text-green-700" : inv.status === "VOID" ? "bg-gray-100 text-gray-500" : "bg-amber-100 text-amber-700"}`}>{inv.status}</span></td>
+                  <td className="px-5 py-3 text-gray-500">{new Date(inv.issuedAt).toLocaleDateString()}</td>
+                  <td className="px-5 py-3 text-right"><button onClick={() => setViewInv(inv)} className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50">View</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {orders.length > 0 && (
         <div className="mt-8 overflow-hidden rounded-2xl bg-white shadow-sm">
           <h3 className="p-5 pb-3 text-lg font-bold text-gray-900">Payment history</h3>
@@ -115,6 +140,7 @@ export function Billing() {
       )}
 
       {checkoutTier && <CheckoutModal tier={checkoutTier} plan={b.plans[checkoutTier]} defaultSeats={Math.max(b.seats, b.activeUsers)} onClose={() => setCheckoutTier(null)} onDone={(m) => { setCheckoutTier(null); setMsg(m); load(); }} />}
+      {viewInv && <InvoiceModal invoice={viewInv} onClose={() => setViewInv(null)} />}
     </div>
   );
 }

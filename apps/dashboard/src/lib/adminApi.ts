@@ -56,6 +56,44 @@ export function adminLogout() {
   location.href = "/admin/login";
 }
 
+// ---- Act as a client (open their dashboard from the admin console) ----
+const IMPERSONATE_KEY = "eagle.actingAs";
+
+export interface ActingAs { orgId: string; orgName: string }
+
+export function getActingAs(): ActingAs | null {
+  const raw = localStorage.getItem(IMPERSONATE_KEY);
+  try { return raw ? (JSON.parse(raw) as ActingAs) : null; } catch { return null; }
+}
+
+/** Fetch an org-scoped token for a client and drop into their dashboard. */
+export async function openClientDashboard(orgId: string, orgName: string) {
+  const res = await adminApi<{ accessToken: string; refreshToken: string; user: { orgName?: string } }>(
+    `/clients/${orgId}/impersonate`,
+    { method: "POST" },
+  );
+  localStorage.setItem("eagle.access", res.accessToken);
+  localStorage.setItem("eagle.refresh", res.refreshToken);
+  localStorage.setItem("eagle.user", JSON.stringify(res.user));
+  localStorage.setItem(IMPERSONATE_KEY, JSON.stringify({ orgId, orgName: res.user.orgName ?? orgName }));
+  location.href = "/";
+}
+
+/** Fetch a client's org token without navigating — used to embed org pages in the admin console. */
+export async function getClientToken(orgId: string): Promise<string> {
+  const res = await adminApi<{ accessToken: string }>(`/clients/${orgId}/impersonate`, { method: "POST" });
+  return res.accessToken;
+}
+
+/** Leave the client dashboard and return to the admin console (admin token is untouched). */
+export function returnToAdmin() {
+  localStorage.removeItem("eagle.access");
+  localStorage.removeItem("eagle.refresh");
+  localStorage.removeItem("eagle.user");
+  localStorage.removeItem(IMPERSONATE_KEY);
+  location.href = "/admin/clients";
+}
+
 /** Turn an adminApi error (whose message may be a JSON body) into a readable string. */
 export function adminErr(e: unknown, fallback = "Something went wrong."): string {
   const msg = (e as Error)?.message ?? fallback;

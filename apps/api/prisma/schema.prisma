@@ -29,6 +29,39 @@ model Organization {
   subscription Subscription?
   supportReqs  SupportRequest[]
   dataRequests DataRequest[]
+  invoices     Invoice[]
+}
+
+// A billing invoice for a plan/seat purchase — generated on payment, or issued by an admin.
+model Invoice {
+  id        String    @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  number    String    @unique // INV-YYYY-NNNN
+  tier      String
+  cycle     String // MONTHLY | ANNUALLY
+  seats     Int
+  amount    Float
+  currency  String    @default("USD")
+  status    String    @default("PAID") // PAID | DUE | VOID
+  source    String    @default("SYSTEM") // CASHFREE | MANUAL | SYSTEM
+  note      String?
+  cfOrderId String? // links back to the PaymentOrder when paid via gateway
+  createdBy String? // admin email or "system"
+  issuedAt  DateTime  @default(now())
+  paidAt    DateTime?
+
+  @@index([orgId, issuedAt])
+}
+
+// A single-use password reset token (hashed). Emailed on "forgot password".
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique // sha256 of the emailed token
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
 }
 
 // A checkout order (Cashfree). Applied to the org's Subscription once PAID.
@@ -257,6 +290,21 @@ model SupportRequest {
   status       String       @default("OPEN")
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @default(now()) @updatedAt
+
+  messages SupportMessage[]
+}
+
+// A reply on a support ticket — a two-way thread between the client and platform staff.
+model SupportMessage {
+  id         String         @id @default(cuid())
+  requestId  String
+  request    SupportRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  author     String // ADMIN | CLIENT
+  authorName String?
+  body       String
+  createdAt  DateTime       @default(now())
+
+  @@index([requestId])
 }
 
 model DataRequest {

@@ -1,7 +1,18 @@
 const API_URL = (import.meta.env.VITE_API_URL as string) ?? "http://localhost:4000";
 
+// When set, org api() calls use this token instead of the stored one. Used by the Super
+// Admin console to embed the real org pages (Reports/Data/Work Replay) pointed at a
+// selected client, without touching the admin session.
+let overrideToken: string | null = null;
+export function setOrgTokenOverride(t: string | null) {
+  overrideToken = t;
+}
+export function hasOrgTokenOverride() {
+  return overrideToken !== null;
+}
+
 export function getToken(): string | null {
-  return localStorage.getItem("eagle.access");
+  return overrideToken ?? localStorage.getItem("eagle.access");
 }
 export function setTokens(access: string, refresh: string) {
   localStorage.setItem("eagle.access", access);
@@ -23,8 +34,11 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     },
   });
   if (res.status === 401) {
-    clearTokens();
-    if (location.pathname !== "/login") location.href = "/login";
+    // Don't bounce the admin to /login when an embedded org view's token lapses.
+    if (!overrideToken) {
+      clearTokens();
+      if (location.pathname !== "/login") location.href = "/login";
+    }
     throw new Error("Unauthorized");
   }
   if (!res.ok) {

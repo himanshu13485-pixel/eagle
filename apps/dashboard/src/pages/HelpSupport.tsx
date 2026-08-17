@@ -44,6 +44,7 @@ export function HelpSupport() {
   const [open, setOpen] = useState(false);
   const [cat, setCat] = useState<string>("All");
   const [openFaq, setOpenFaq] = useState<string | null>(null);
+  const [viewId, setViewId] = useState<string | null>(null);
   const [form, setForm] = useState({ kind: "SUPPORT", subject: "", description: "", contactName: "", contactPhone: "", contactEmail: "" });
 
   function load() { api<SupportRequest[]>("/support").then(setReqs).catch(() => setReqs([])); }
@@ -90,7 +91,7 @@ export function HelpSupport() {
                     <td className="px-5 py-3 text-gray-400">{i + 1}</td>
                     <td className="px-5 py-3 font-mono text-xs font-semibold text-gray-600">{r.requestId}</td>
                     <td className="px-5 py-3"><span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${k.style}`}>{k.icon} {k.label}</span></td>
-                    <td className="px-5 py-3 font-medium text-gray-900">{r.subject}</td>
+                    <td className="px-5 py-3"><button onClick={() => setViewId(r.id)} className="font-medium text-gray-900 hover:text-brand">{r.subject}</button></td>
                     <td className="px-5 py-3 text-gray-500">{r.createdBy ?? "—"}</td>
                     <td className="px-5 py-3"><span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLE[r.status] ?? "bg-gray-100 text-gray-500"}`}>{cap(r.status)}</span></td>
                     <td className="px-5 py-3 text-gray-500">{fmtDate(r.createdAt)}</td>
@@ -130,6 +131,8 @@ export function HelpSupport() {
         </div>
       )}
 
+      {viewId && <ClientThreadModal id={viewId} onClose={() => setViewId(null)} onReplied={load} />}
+
       {open && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={() => setOpen(false)}>
           <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
@@ -166,4 +169,52 @@ export function HelpSupport() {
 
 function TabBtn({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
   return <button onClick={onClick} className={`-mb-px flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-semibold ${active ? "border-brand text-brand" : "border-transparent text-gray-500 hover:text-gray-700"}`}>{children}</button>;
+}
+
+interface ThreadMsg { id: string; author: string; authorName: string | null; body: string; createdAt: string }
+interface Thread { requestId: string; subject: string; description: string; status: string; messages: ThreadMsg[] }
+
+function ClientThreadModal({ id, onClose, onReplied }: { id: string; onClose: () => void; onReplied: () => void }) {
+  const [t, setT] = useState<Thread | null>(null);
+  const [reply, setReply] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  function load() { api<Thread>(`/support/${id}`).then(setT).catch(() => setT(null)); }
+  useEffect(load, [id]);
+
+  async function send() {
+    if (!reply.trim()) return;
+    setBusy(true);
+    try { await api(`/support/${id}/reply`, { method: "POST", body: JSON.stringify({ body: reply.trim() }) }); setReply(""); load(); onReplied(); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={onClose}>
+      <div className="flex max-h-[88vh] w-full max-w-xl flex-col rounded-2xl bg-white p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-gray-900">{t?.subject ?? "Request"}</h3>
+            <p className="text-xs text-gray-400">{t?.requestId} · {t ? cap(t.status) : ""}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700">✕</button>
+        </div>
+        <div className="mt-4 flex-1 space-y-2 overflow-y-auto">
+          <div className="rounded-xl bg-gray-50 p-3 text-sm text-gray-700">{t?.description ?? "…"}</div>
+          {t?.messages.map((m) => (
+            <div key={m.id} className={`flex ${m.author === "CLIENT" ? "justify-end" : "justify-start"}`}>
+              <div className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm ${m.author === "CLIENT" ? "bg-brand text-white" : "bg-white text-gray-700 ring-1 ring-gray-200"}`}>
+                <div className="whitespace-pre-wrap">{m.body}</div>
+                <div className={`mt-0.5 text-[10px] ${m.author === "CLIENT" ? "text-white/70" : "text-gray-400"}`}>{m.author === "CLIENT" ? "You" : "Support"} · {new Date(m.createdAt).toLocaleString()}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 flex items-end gap-2 border-t border-gray-100 pt-4">
+          <textarea value={reply} onChange={(e) => setReply(e.target.value)} rows={2} placeholder="Write a reply…" className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm" />
+          <button onClick={send} disabled={busy || !reply.trim()} className="rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-dark disabled:opacity-40">{busy ? "…" : "Send"}</button>
+        </div>
+      </div>
+    </div>
+  );
 }

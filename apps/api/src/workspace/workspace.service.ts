@@ -201,4 +201,33 @@ export class WorkspaceService {
       },
     });
   }
+
+  /** Ticket + reply thread (client view). */
+  async supportThread(orgId: string, id: string) {
+    const t = await this.prisma.supportRequest.findFirst({
+      where: { id, orgId },
+      include: { messages: { orderBy: { createdAt: "asc" } } },
+    });
+    if (!t) throw new NotFoundException("Request not found");
+    return {
+      id: t.id,
+      requestId: `SR-${t.id.slice(-6).toUpperCase()}`,
+      kind: t.kind,
+      subject: t.subject,
+      description: t.description,
+      status: t.status,
+      createdAt: t.createdAt.toISOString(),
+      messages: t.messages.map((m) => ({ id: m.id, author: m.author, authorName: m.authorName, body: m.body, createdAt: m.createdAt.toISOString() })),
+    };
+  }
+
+  /** Client posts a reply on their own ticket; re-opens a resolved/closed one. */
+  async replySupport(orgId: string, id: string, authorEmail: string, body: string) {
+    if (!body?.trim()) throw new BadRequestException("Message is required.");
+    const t = await this.prisma.supportRequest.findFirst({ where: { id, orgId } });
+    if (!t) throw new NotFoundException("Request not found");
+    await this.prisma.supportMessage.create({ data: { requestId: id, author: "CLIENT", authorName: authorEmail, body: body.trim() } });
+    await this.prisma.supportRequest.update({ where: { id }, data: { status: t.status === "RESOLVED" || t.status === "CLOSED" ? "OPEN" : t.status } });
+    return { ok: true };
+  }
 }

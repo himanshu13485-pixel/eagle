@@ -86,4 +86,12 @@ export class WorkspaceController {
   createSupport(@CurrentUser() u: RequestUser, @Body() dto: SupportDto) {
     return this.ws.createSupport(u.orgId, u.email, dto);
   }
+  @Get("support/:id")
+  supportThread(@CurrentUser() u: RequestUser, @Param("id") id: string) {
+    return this.ws.supportThread(u.orgId, id);
+  }
+  @Post("support/:id/reply")
+  supportReply(@CurrentUser() u: RequestUser, @Param("id") id: string, @Body() body: { body: string }) {
+    return this.ws.replySupport(u.orgId, id, u.email, body.body);
+  }
 }

@@ -9,6 +9,7 @@ import {
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
 import * as bcrypt from "bcryptjs";
+import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../prisma/prisma.service";
 import { RT_EVENTS, type LiveFramePayload, type LiveWatchPayload } from "@eagle/shared";
 
@@ -33,13 +34,46 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   // per-socket metadata
   private deviceMeta = new Map<string, { deviceId: string; employeeId: string; orgId: string }>();
   private viewerOrg = new Map<string, string>();
+  // platform admin viewers (cross-client live wall) — authenticated by JWT at connect
+  private adminMeta = new Map<string, { adminId: string; role: string }>();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwt: JwtService,
+  ) {}
 
   async handleConnection(client: Socket) {
-    const token = client.handshake.auth?.deviceToken as string | undefined;
-    if (!token) return; // dashboard viewer — authenticates via `join`
-    const [deviceId, secret] = token.split(".");
+    // Platform admin viewer: authenticate up-front, then watch any client via `admin.watch`.
+    const adminToken = client.handshake.auth?.adminToken as string | undefined;
+    if (adminToken) {
+      try {
+        const p: any = await this.jwt.verifyAsync(adminToken, { secret: process.env.JWT_ACCESS_SECRET ?? "change-me-access" });
+        if (p?.scope !== "platform") return client.disconnect();
+        this.adminMeta.set(client.id, { adminId: p.sub, role: p.role });
+      } catch {
+        return client.disconnect();
+      }
+      return;
+    }
+
+    const deviceToken = client.handshake.auth?.deviceToken as string | undefined;
+    if (!deviceToken) {
+      // Dashboard viewer: must present its org access token. We verify it here and bind
+      // the socket to the token's org, so a client can only ever join/watch its own org
+      // (previously any client could `join` an arbitrary orgId and watch its employees).
+      const userToken = client.handshake.auth?.token as string | undefined;
+      if (!userToken) return client.disconnect();
+      try {
+        const p: any = await this.jwt.verifyAsync(userToken, { secret: process.env.JWT_ACCESS_SECRET ?? "change-me-access" });
+        if (p?.scope === "platform" || !p?.orgId) return client.disconnect();
+        this.viewerOrg.set(client.id, p.orgId);
+        client.join(`org:${p.orgId}`);
+      } catch {
+        return client.disconnect();
+      }
+      return;
+    }
+    const [deviceId, secret] = deviceToken.split(".");
     if (!deviceId || !secret) return client.disconnect();
     const device = await this.prisma.device.findUnique({ where: { id: deviceId } });
     if (!device?.enrolled || !device.deviceTokenHash || !bcrypt.compareSync(secret, device.deviceTokenHash)) {
@@ -68,18 +102,20 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       }
     }
     this.viewerOrg.delete(client.id);
+    this.adminMeta.delete(client.id);
     for (const [employeeId, viewers] of this.viewersByEmployee) {
       if (viewers.delete(client.id) && viewers.size === 0) this.stopDevice(employeeId);
     }
   }
 
   @SubscribeMessage(RT_EVENTS.join)
-  onJoin(@MessageBody() data: { orgId: string }, @ConnectedSocket() client: Socket) {
-    if (data?.orgId) {
-      client.join(`org:${data.orgId}`);
-      this.viewerOrg.set(client.id, data.orgId);
-    }
-    return { ok: true };
+  onJoin(@ConnectedSocket() client: Socket) {
+    // The org is bound from the verified token at connect; any client-supplied orgId is
+    // ignored so a viewer can't join another tenant's room. Kept for connect-order safety.
+    const orgId = this.viewerOrg.get(client.id);
+    if (!orgId) return { ok: false };
+    client.join(`org:${orgId}`);
+    return { ok: true, orgId };
   }
 
   @SubscribeMessage(RT_EVENTS.liveWatch)
@@ -132,6 +168,64 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     if (!orgId || !data?.employeeId) return;
     const ok = await this.prisma.employee.findFirst({ where: { id: data.employeeId, orgId }, select: { id: true } });
     if (!ok) return;
+    for (const sid of this.deviceSocketsByEmployee.get(data.employeeId) ?? []) {
+      this.server.to(sid).emit(RT_EVENTS.liveSetMonitor, { index: Math.max(0, Number(data.index) || 0) });
+    }
+  }
+
+  /** Resolve the admin identity for a socket. Falls back to verifying the handshake
+   *  token if the connect-time cache isn't populated yet (avoids a watch-before-auth race). */
+  private async requireAdmin(client: Socket): Promise<{ adminId: string; role: string } | null> {
+    const cached = this.adminMeta.get(client.id);
+    if (cached) return cached;
+    const t = client.handshake.auth?.adminToken as string | undefined;
+    if (!t) return null;
+    try {
+      const p: any = await this.jwt.verifyAsync(t, { secret: process.env.JWT_ACCESS_SECRET ?? "change-me-access" });
+      if (p?.scope !== "platform") return null;
+      const meta = { adminId: p.sub, role: p.role };
+      this.adminMeta.set(client.id, meta);
+      return meta;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Platform admin -> watch/unwatch any client's employee (cross-client live wall). */
+  @SubscribeMessage("admin.watch")
+  async onAdminWatch(@MessageBody() data: { employeeId: string; on: boolean }, @ConnectedSocket() client: Socket) {
+    const admin = await this.requireAdmin(client);
+    if (!admin || !data?.employeeId) return { ok: false };
+    const emp = await this.prisma.employee.findFirst({
+      where: { id: data.employeeId, active: true },
+      include: { org: { select: { salespersonId: true } } },
+    });
+    if (!emp) return { ok: false };
+    // Salespeople may only watch their own clients; Super/Sub admins can watch anyone.
+    if (admin.role === "SALESPERSON" && emp.org.salespersonId !== admin.adminId) return { ok: false };
+
+    if (data.on) {
+      const first = !(this.viewersByEmployee.get(data.employeeId)?.size);
+      this.addTo(this.viewersByEmployee, data.employeeId, client.id);
+      if (first) this.startDevice(data.employeeId);
+    } else {
+      this.removeFrom(this.viewersByEmployee, data.employeeId, client.id);
+      if (!this.viewersByEmployee.get(data.employeeId)?.size) this.stopDevice(data.employeeId);
+    }
+    return { ok: true };
+  }
+
+  /** Platform admin -> switch which monitor a watched agent streams. */
+  @SubscribeMessage("admin.setMonitor")
+  async onAdminSetMonitor(@MessageBody() data: { employeeId: string; index: number }, @ConnectedSocket() client: Socket) {
+    const admin = await this.requireAdmin(client);
+    if (!admin || !data?.employeeId) return;
+    const emp = await this.prisma.employee.findFirst({
+      where: { id: data.employeeId },
+      include: { org: { select: { salespersonId: true } } },
+    });
+    if (!emp) return;
+    if (admin.role === "SALESPERSON" && emp.org.salespersonId !== admin.adminId) return;
     for (const sid of this.deviceSocketsByEmployee.get(data.employeeId) ?? []) {
       this.server.to(sid).emit(RT_EVENTS.liveSetMonitor, { index: Math.max(0, Number(data.index) || 0) });
     }

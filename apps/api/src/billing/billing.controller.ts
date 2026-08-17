@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { IsEnum, IsIn, IsInt, IsOptional, IsString, Min } from "class-validator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CurrentUser, RequestUser } from "../auth/current-user.decorator";
@@ -71,6 +71,14 @@ export class BillingController {
   @Get("orders")
   orders(@CurrentUser() u: RequestUser) {
     return this.billing.listOrders(u.orgId);
+  }
+  @Get("invoices")
+  invoices(@CurrentUser() u: RequestUser) {
+    return this.billing.listInvoices(u.orgId);
+  }
+  @Get("invoices/:id")
+  invoice(@CurrentUser() u: RequestUser, @Param("id") id: string) {
+    return this.billing.invoice(u.orgId, id);
   }
 
   // ---- manual (super-admin comp / dev) ----

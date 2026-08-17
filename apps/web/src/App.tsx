@@ -2,6 +2,8 @@ import { BRAND, PLANS, NAV_FEATURES, TRUST_BADGES } from "@eagle/shared";
 import type { PlanDefinition } from "@eagle/shared";
 
 const DASHBOARD_URL = "http://localhost:5173";
+const SIGNUP_URL = `${DASHBOARD_URL}/signup`;
+const LOGIN_URL = `${DASHBOARD_URL}/login`;
 
 const MOST_LOVED = [
   {
@@ -50,12 +52,15 @@ function Nav() {
           <a className="hover:text-white" href="#pricing">Pricing</a>
           <a className="hover:text-white" href="#contact">Contact Us</a>
         </nav>
-        <a
-          href={DASHBOARD_URL}
-          className="rounded-full bg-gold px-5 py-2.5 text-sm font-bold text-ink shadow-lg shadow-gold/20 transition hover:brightness-105"
-        >
-          START 14 DAY FREE TRIAL ›
-        </a>
+        <div className="flex items-center gap-4">
+          <a href={LOGIN_URL} className="text-sm font-semibold text-gray-200 hover:text-white">Login</a>
+          <a
+            href={SIGNUP_URL}
+            className="rounded-full bg-gold px-5 py-2.5 text-sm font-bold text-ink shadow-lg shadow-gold/20 transition hover:brightness-105"
+          >
+            START 14 DAY FREE TRIAL ›
+          </a>
+        </div>
       </div>
     </header>
   );
@@ -88,7 +93,7 @@ function Hero() {
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
           <a
-            href={DASHBOARD_URL}
+            href={SIGNUP_URL}
             className="rounded-full bg-gold px-7 py-3.5 text-base font-bold text-ink shadow-xl shadow-gold/20 transition hover:brightness-105"
           >
             Start 14 Day Free Trial ➔
@@ -211,7 +216,7 @@ function PriceCard({ plan }: { plan: PlanDefinition }) {
         ))}
       </ul>
       <a
-        href={DASHBOARD_URL}
+        href={SIGNUP_URL}
         className={`mt-8 rounded-full px-6 py-3 text-center text-sm font-bold transition ${
           plan.recommended
             ? "bg-indigo-500 text-white hover:bg-indigo-600"
@@ -276,7 +281,7 @@ function Footer() {
         <div>
           <h4 className="mb-3 font-bold text-white">Get started</h4>
           <a
-            href={DASHBOARD_URL}
+            href={SIGNUP_URL}
             className="inline-block rounded-full bg-gold px-5 py-2.5 text-sm font-bold text-ink"
           >
             Start Free Trial

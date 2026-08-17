@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { PLANS, PlanTier } from "@eagle/shared";
 import { CashfreeService } from "./cashfree.service";
+import { InvoicesService } from "../invoices/invoices.service";
 
 @Injectable()
 export class BillingService {
@@ -10,6 +11,7 @@ export class BillingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cashfree: CashfreeService,
+    private readonly invoices: InvoicesService,
   ) {}
 
   private priceFor(tier: string, cycle: string): number {
@@ -98,7 +100,19 @@ export class BillingService {
       update: { tier: order.tier, cycle: order.cycle, seats: order.seats, validUntil: base },
     });
     await this.prisma.paymentOrder.update({ where: { id: order.id }, data: { status: "PAID", paidAt: now } });
+    // Issue the invoice for this payment (idempotent per order).
+    await this.invoices.fromPaidOrder({
+      orgId: order.orgId, tier: order.tier, cycle: order.cycle, seats: order.seats,
+      amount: order.amount, currency: order.currency, cfOrderId: order.cfOrderId, paidAt: now,
+    }).catch((e) => this.log.warn(`invoice generation failed for ${order.cfOrderId}: ${e.message}`));
     this.log.log(`Order ${order.cfOrderId} PAID → org ${order.orgId} ${order.tier}/${order.seats} seats until ${base.toISOString().slice(0, 10)}`);
+  }
+
+  listInvoices(orgId: string) {
+    return this.invoices.listForOrg(orgId);
+  }
+  invoice(orgId: string, id: string) {
+    return this.invoices.getForOrg(orgId, id);
   }
 
   async listOrders(orgId: string) {

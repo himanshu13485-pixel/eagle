@@ -19,6 +19,7 @@ import { WorkspaceModule } from "./workspace/workspace.module";
 import { RetentionModule } from "./retention/retention.module";
 import { AdminModule } from "./admin/admin.module";
 import { NotificationsModule } from "./notifications/notifications.module";
+import { InvoicesModule } from "./invoices/invoices.module";
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { NotificationsModule } from "./notifications/notifications.module";
     RetentionModule,
     AdminModule,
     NotificationsModule,
+    InvoicesModule,
   ],
 })
 export class AppModule {}

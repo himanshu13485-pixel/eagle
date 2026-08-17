@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { adminApi, adminErr, getAdmin } from "../../lib/adminApi";
+import { adminApi, adminErr, getAdmin, openClientDashboard } from "../../lib/adminApi";
 import { AdminHeader } from "../../components/AdminLayout";
 
 interface Client {
@@ -17,6 +17,8 @@ export function AdminClients() {
   const [clients, setClients] = useState<Client[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [tierFilter, setTierFilter] = useState("ALL");
   const [add, setAdd] = useState(false);
   const [edit, setEdit] = useState<Client | null>(null);
   const [toast, setToast] = useState("");
@@ -30,7 +32,11 @@ export function AdminClients() {
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 3000); return () => clearTimeout(t); }, [toast]);
 
   const sellers = useMemo(() => staff.filter((s) => s.role === "SALESPERSON" || s.role === "SUB_ADMIN"), [staff]);
-  const filtered = useMemo(() => clients.filter((c) => c.name.toLowerCase().includes(search.toLowerCase()) || (c.ownerEmail ?? "").includes(search.toLowerCase())), [clients, search]);
+  const filtered = useMemo(() => clients.filter((c) =>
+    (c.name.toLowerCase().includes(search.toLowerCase()) || (c.ownerEmail ?? "").includes(search.toLowerCase())) &&
+    (statusFilter === "ALL" || c.status === statusFilter) &&
+    (tierFilter === "ALL" || c.tier === tierFilter),
+  ), [clients, search, statusFilter, tierFilter]);
   const canManage = me?.role !== "SALESPERSON";
 
   async function toggleStatus(c: Client) {
@@ -38,11 +44,24 @@ export function AdminClients() {
     catch (e) { setToast(adminErr(e)); }
   }
 
+  async function openDashboard(c: Client) {
+    try { await openClientDashboard(c.id, c.name); }
+    catch (e) { setToast(adminErr(e)); }
+  }
+
   return (
     <div>
       <AdminHeader title="Clients" subtitle="Every account on the platform." action={<button onClick={() => setAdd(true)} className="rounded-full bg-brand px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-dark">+ Add Client</button>} />
 
-      <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search client or owner email…" className="mb-4 w-80 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm" />
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search client or owner email…" className="w-72 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm" />
+        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm">
+          {["ALL", "ACTIVE", "SUSPENDED"].map((s) => <option key={s} value={s}>{s === "ALL" ? "All statuses" : s.charAt(0) + s.slice(1).toLowerCase()}</option>)}
+        </select>
+        <select value={tierFilter} onChange={(e) => setTierFilter(e.target.value)} className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm">
+          {["ALL", ...TIERS].map((t) => <option key={t} value={t}>{t === "ALL" ? "All tiers" : t}</option>)}
+        </select>
+      </div>
 
       <div className="overflow-x-auto rounded-2xl bg-white shadow-sm">
         <table className="w-full min-w-max text-left text-sm">
@@ -65,9 +84,9 @@ export function AdminClients() {
                 <td className="px-5 py-3 text-gray-500">{c.salespersonName ?? "—"}</td>
                 <td className="px-5 py-3">
                   <div className="flex items-center justify-center gap-2">
+                    <button onClick={() => openDashboard(c)} className="rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-dark">Open</button>
                     {canManage && <button onClick={() => setEdit(c)} className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50">Edit</button>}
                     {canManage && <button onClick={() => toggleStatus(c)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${c.status === "ACTIVE" ? "bg-rose-50 text-rose-600 hover:bg-rose-100" : "bg-green-50 text-green-700 hover:bg-green-100"}`}>{c.status === "ACTIVE" ? "Suspend" : "Activate"}</button>}
-                    {!canManage && <span className="text-xs text-gray-400">—</span>}
                   </div>
                 </td>
               </tr>
@@ -92,6 +111,9 @@ function ClientModal({ client, sellers, onClose, onSaved, onErr }: { client?: Cl
   const [tier, setTier] = useState(client?.tier ?? "PROFESSIONAL");
   const [seats, setSeats] = useState(client?.seats ?? 10);
   const [salespersonId, setSalespersonId] = useState(client?.salespersonId ?? "");
+  const [withInvoice, setWithInvoice] = useState(false);
+  const [invoiceNo, setInvoiceNo] = useState("");
+  const [invoiceStatus, setInvoiceStatus] = useState("DUE");
   const [busy, setBusy] = useState(false);
 
   async function save() {
@@ -100,7 +122,7 @@ function ClientModal({ client, sellers, onClose, onSaved, onErr }: { client?: Cl
       if (isEdit) {
         await adminApi(`/clients/${client!.id}`, { method: "PATCH", body: JSON.stringify({ tier, seats: Number(seats), salespersonId: salespersonId || null }) });
       } else {
-        await adminApi("/clients", { method: "POST", body: JSON.stringify({ name, ownerName, ownerEmail, ownerPassword, tier, seats: Number(seats), salespersonId: salespersonId || undefined }) });
+        await adminApi("/clients", { method: "POST", body: JSON.stringify({ name, ownerName, ownerEmail, ownerPassword, tier, seats: Number(seats), salespersonId: salespersonId || undefined, withInvoice, invoiceNo: invoiceNo.trim() || undefined, invoiceStatus }) });
       }
       onSaved();
     } catch (e) { onErr(adminErr(e)); setBusy(false); }
@@ -139,6 +161,19 @@ function ClientModal({ client, sellers, onClose, onSaved, onErr }: { client?: Cl
                 {sellers.map((s) => <option key={s.id} value={s.id}>{s.name} ({s.role === "SUB_ADMIN" ? "Sub Admin" : "Sales"})</option>)}
               </select>
             </Field>
+          )}
+          {!isEdit && (
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <input type="checkbox" checked={withInvoice} onChange={(e) => setWithInvoice(e.target.checked)} /> Create an initial invoice for this plan
+              </label>
+              {withInvoice && (
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <Field label="Invoice no (optional)"><input value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} placeholder="auto" className="w-full rounded-xl border border-gray-200 px-4 py-2.5" /></Field>
+                  <Field label="Status"><select value={invoiceStatus} onChange={(e) => setInvoiceStatus(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5"><option value="DUE">Due</option><option value="PAID">Paid</option></select></Field>
+                </div>
+              )}
+            </div>
           )}
         </div>
         <div className="mt-5 flex justify-end gap-2">
