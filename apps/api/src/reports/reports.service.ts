@@ -179,7 +179,7 @@ export class ReportsService {
       const totalsByName = new Map<string, number>();
       for (const row of rows) {
         if (!row.breakdown) continue;
-        for (const [n, sec] of Object.entries(row.breakdown)) totalsByName.set(n, (totalsByName.get(n) ?? 0) + sec);
+        for (const [n, sec] of Object.entries(row.breakdown)) totalsByName.set(n, (totalsByName.get(n) ?? 0) + Number(sec));
       }
       columns = [...totalsByName.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12).map(([n]) => n);
     }
