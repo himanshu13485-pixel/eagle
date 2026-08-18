@@ -1,0 +1,104 @@
+# Eagle production stack for workk.work — tuned for a SHARED server that already
+# runs other projects behind an existing nginx.
+#
+# Differences from infra/docker-compose.prod.yml:
+#   * every published port binds to 127.0.0.1 (nginx terminates TLS and proxies in)
+#   * host ports are env-configurable and default off the common 3000/4000/8080
+#   * MinIO is dropped: presigned URLs signed against the internal `minio:9000`
+#     host are unreachable from a browser, so screenshots would render broken.
+#     Storage is local-disk on a named volume, served by the API at /api/files/.
+#     (To go back to S3, see README "Switching to S3/MinIO".)
+#
+#   docker compose --env-file .env.workk -f deploy/prod/docker-compose.workk.yml up -d --build
+name: eagle
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: eagle
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set me}
+      POSTGRES_DB: eagle
+    volumes:
+      - pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U eagle -d eagle"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://eagle:${POSTGRES_PASSWORD}@postgres:5432/eagle?schema=public
+      API_PORT: 4000
+      NODE_ENV: production
+
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set me}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set me}
+      DEVICE_TOKEN_SECRET: ${DEVICE_TOKEN_SECRET:?set me}
+
+      # Local-disk screenshot storage on the `shots` volume below.
+      STORAGE_DRIVER: local
+      STORAGE_DIR: /data/screenshots
+
+      # Public URLs. PUBLIC_API_URL builds the /api/files/ screenshot links,
+      # AGENT_PUBLIC_URL is baked into generated agent installers, DASHBOARD_URL
+      # builds password-reset links. All three must be the real public domain.
+      PUBLIC_API_URL: ${PUBLIC_API_URL:?set me}
+      AGENT_PUBLIC_URL: ${AGENT_PUBLIC_URL:?set me}
+      DASHBOARD_URL: ${DASHBOARD_URL:?set me}
+
+      # Agent installer binary (see DEPLOY.md "The agent binary in production").
+      AGENT_EXE_PATH: ${AGENT_EXE_PATH:-/data/agent/eagle-agent.exe}
+
+      # Optional integrations — each stays in DRY mode until filled in.
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_SECURE: ${SMTP_SECURE:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-}
+      WHATSAPP_PHONE_NUMBER_ID: ${WHATSAPP_PHONE_NUMBER_ID:-}
+      CASHFREE_APP_ID: ${CASHFREE_APP_ID:-}
+      CASHFREE_SECRET_KEY: ${CASHFREE_SECRET_KEY:-}
+      CASHFREE_ENV: ${CASHFREE_ENV:-sandbox}
+      CASHFREE_CURRENCY: ${CASHFREE_CURRENCY:-INR}
+    volumes:
+      - shots:/data/screenshots
+      - agentbin:/data/agent
+    ports:
+      - "127.0.0.1:${API_HOST_PORT:-4100}:4000"
+
+  dashboard:
+    build:
+      context: ../..
+      dockerfile: apps/dashboard/Dockerfile
+      args:
+        # Baked in at BUILD time — rebuild this image if the API domain changes.
+        VITE_API_URL: ${PUBLIC_API_URL:?set me}
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${DASHBOARD_HOST_PORT:-8180}:80"
+
+  web:
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${WEB_HOST_PORT:-8181}:80"
+
+volumes:
+  pg:
+  shots:
+  agentbin:
