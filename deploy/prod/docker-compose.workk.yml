@@ -21,7 +21,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set me}
       POSTGRES_DB: eagle
     volumes:
-      - pg:/var/lib/postgresql/data
+      # Bind-mounted onto /home: Docker's data-root is on the 70G / partition,
+      # which is shared with cPanel and the containers already running here.
+      # Postgres + screenshots would fill it and take the other sites down.
+      - ${EAGLE_DATA:-/home/eagle-app/data}/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U eagle -d eagle"]
       interval: 10s
@@ -74,8 +77,8 @@ services:
       CASHFREE_ENV: ${CASHFREE_ENV:-sandbox}
       CASHFREE_CURRENCY: ${CASHFREE_CURRENCY:-INR}
     volumes:
-      - shots:/data/screenshots
-      - agentbin:/data/agent
+      - ${EAGLE_DATA:-/home/eagle-app/data}/screenshots:/data/screenshots
+      - ${EAGLE_DATA:-/home/eagle-app/data}/agent:/data/agent
     ports:
       - "127.0.0.1:${API_HOST_PORT:-4100}:4000"
 
@@ -97,8 +100,3 @@ services:
     restart: unless-stopped
     ports:
       - "127.0.0.1:${WEB_HOST_PORT:-8181}:80"
-
-volumes:
-  pg:
-  shots:
-  agentbin:

@@ -1,8 +1,19 @@
 # Hosting Eagle on workk.work
 
-Target: the existing shared server that already runs bookmyvessel, grapme and
-netvork. Eagle sits alongside them — its containers bind only to `127.0.0.1`
-and the server's existing nginx terminates TLS and routes by hostname.
+Target: `srv.tradegeniusglobal.com` (134.195.138.179) — the AlmaLinux + cPanel/WHM
+box that already runs bookmyvessel, grapme and netvork. Eagle sits alongside
+them: its containers bind only to `127.0.0.1`, and Apache (managed by cPanel)
+terminates TLS and routes by hostname.
+
+Server facts that shaped this setup:
+- Docker 26.1.3 already installed, with other containers running.
+- 93G RAM — not a constraint.
+- **Disk is the constraint.** `/` is 70G (50G free) and holds `/var/lib/docker`;
+  `/home` is 765G (522G free). Eagle's Postgres and screenshots are bind-mounted
+  to `/home/eagle-app/data` so they can't fill `/` and take the other sites down.
+- Apache has `proxy`, `proxy_http`, `proxy_wstunnel` and `rewrite` loaded — all
+  four are required.
+- `workk.work` has **no DNS zone on this server**, so DNS lives at the registrar.
 
 | Hostname | Serves | Container | Loopback port |
 |---|---|---|---|
@@ -24,6 +35,8 @@ The shipped prod compose does not survive contact with a real domain:
 2. **Ports bind to `0.0.0.0`** on `4000`/`8080`/`8081`, which both exposes the
    raw services publicly and collides with what already runs on this box.
    Everything here binds to `127.0.0.1` on `4100`/`8180`/`8181`.
+3. **Named volumes land on `/`**, the 70G partition this server shares with
+   cPanel. Screenshot growth would fill it. Data is bind-mounted to `/home`.
 
 ### Switching to S3/MinIO later
 Local disk is fine until screenshot volume outgrows the server's disk. To move
@@ -35,16 +48,18 @@ be the same URL the browser will fetch.
 ## Runbook
 
 ### 1. DNS
-Four A records, all pointing at the server's public IPv4:
+There is no `workk.work` zone in `/var/named`, so this server is not the
+nameserver — add these at the registrar where the domain was bought:
 
 ```
-@      A   <SERVER_IP>
-www    A   <SERVER_IP>
-app    A   <SERVER_IP>
-api    A   <SERVER_IP>
+@      A   134.195.138.179
+www    A   134.195.138.179
+app    A   134.195.138.179
+api    A   134.195.138.179
 ```
 
-Wait for propagation (`dig +short api.workk.work`) before running certbot.
+Wait for propagation (`dig +short api.workk.work`) before running AutoSSL —
+AutoSSL validates over HTTP and fails if DNS hasn't landed.
 
 ### 2. Clone and deploy
 
@@ -59,17 +74,24 @@ The script generates `.env.workk` with fresh secrets on first run, checks the
 three ports are free, builds the images and starts the stack. **Back up
 `.env.workk`** — losing `DEVICE_TOKEN_SECRET` de-enrolls every agent.
 
-### 3. nginx + TLS
+### 3. cPanel domains + Apache proxy + TLS
+
+First create the domains so Apache has vhosts to include into:
+WHM » **Create a New Account** for `workk.work`, then inside that account's
+cPanel » **Domains**, add `app.workk.work` and `api.workk.work`.
+
+Then wire the vhosts to the containers:
 
 ```bash
-sudo cp deploy/prod/nginx-workk.work.conf /etc/nginx/sites-available/workk.work
-sudo ln -sf /etc/nginx/sites-available/workk.work /etc/nginx/sites-enabled/workk.work
-sudo nginx -t && sudo systemctl reload nginx
-sudo certbot --nginx -d workk.work -d www.workk.work -d app.workk.work -d api.workk.work
+sudo bash deploy/prod/setup-cpanel-apache.sh
 ```
 
-Certbot rewrites the site file in place with the TLS blocks and an HTTP
-redirect. The Socket.IO `Upgrade` headers are preserved.
+cPanel regenerates `httpd.conf` from templates, so hand-edited vhosts get wiped.
+The script writes proper userdata includes under
+`/etc/apache2/conf.d/userdata/{std,ssl}/2_4/<user>/<domain>/eagle.conf`, which
+survive rebuilds, then runs `ensure_vhost_includes` and restarts Apache.
+
+Finally: WHM » **Manage AutoSSL** » Run AutoSSL to issue certificates.
 
 ### 4. First login
 There is no production seed step — `POST /api/auth/register` is public, so

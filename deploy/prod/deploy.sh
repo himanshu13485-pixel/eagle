@@ -41,6 +41,15 @@ else
   say "$ENV_FILE already exists — leaving it alone."
 fi
 
+# ── 3. Data directory on /home ─────────────────────────────────────────────
+# Docker's data-root is on the 70G / partition, shared with cPanel and the
+# containers already running on this box. Eagle's Postgres + screenshots live
+# on /home (522G free) instead so a full disk can't take the other sites down.
+EAGLE_DATA="${EAGLE_DATA:-/home/eagle-app/data}"
+mkdir -p "$EAGLE_DATA"/{postgres,screenshots,agent}
+grep -q '^EAGLE_DATA=' "$ENV_FILE" || echo "EAGLE_DATA=$EAGLE_DATA" >> "$ENV_FILE"
+say "Data directory: $EAGLE_DATA ($(df -h "$EAGLE_DATA" | awk 'NR==2{print $4}') free)"
+
 # ── 3. Port check ──────────────────────────────────────────────────────────
 # shellcheck disable=SC1090
 set -a; . "./$ENV_FILE"; set +a
@@ -77,11 +86,10 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE" ps
 cat <<'NEXT'
 
 Next steps (once, on this server):
-  1. Install the nginx site:
-       cp deploy/prod/nginx-workk.work.conf /etc/nginx/sites-available/workk.work
-       ln -sf /etc/nginx/sites-available/workk.work /etc/nginx/sites-enabled/workk.work
-       nginx -t && systemctl reload nginx
-  2. Point DNS at this server (A records: @, www, app, api), then issue TLS:
-       certbot --nginx -d workk.work -d www.workk.work -d app.workk.work -d api.workk.work
+  1. Create workk.work in WHM (Create a New Account), plus the `app` and `api`
+     subdomains in that account's cPanel.
+  2. Point Apache at the containers (cPanel userdata includes):
+       bash deploy/prod/setup-cpanel-apache.sh
+     then issue TLS via WHM » Manage AutoSSL » Run AutoSSL.
   3. Seed the first org/owner login — see deploy/prod/README.md.
 NEXT
