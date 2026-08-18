@@ -15,11 +15,23 @@ Server facts that shaped this setup:
   four are required.
 - `workk.work` has **no DNS zone on this server**, so DNS lives at the registrar.
 
-| Hostname | Serves | Container | Loopback port |
+Single domain, path-routed — one vhost, one certificate, and no CORS because
+the dashboard and API are same-origin:
+
+| URL | Serves | Container | Loopback port |
 |---|---|---|---|
-| `workk.work`, `www.workk.work` | marketing site | `web` | 8181 |
-| `app.workk.work` | manager dashboard | `dashboard` | 8180 |
-| `api.workk.work` | REST + Socket.IO + agent traffic | `api` | 4100 |
+| `workk.work/` | marketing site | `web` | 8181 |
+| `workk.work/app` | manager dashboard | `dashboard` | 8180 |
+| `workk.work/api` | REST + agent traffic | `api` | 4100 |
+| `workk.work/socket.io` | realtime / live screen | `api` | 4100 |
+
+Subdomains were the obvious layout, but every cPanel account on this box is at
+its domain limit, so `workk.work` goes in as a single addon domain under an
+existing account. Path routing needs one entry instead of four.
+
+The dashboard is a Vite SPA that assumed it lived at the root; it is now built
+with `base=/app/` (`VITE_BASE_PATH` build arg) and the router picks that up via
+`import.meta.env.BASE_URL`. Local dev is unaffected — the base defaults to `/`.
 
 Postgres has no published port — it is reachable only from the other containers.
 
@@ -54,11 +66,9 @@ nameserver — add these at the registrar where the domain was bought:
 ```
 @      A   134.195.138.179
 www    A   134.195.138.179
-app    A   134.195.138.179
-api    A   134.195.138.179
 ```
 
-Wait for propagation (`dig +short api.workk.work`) before running AutoSSL —
+Wait for propagation (`dig +short workk.work`) before running AutoSSL —
 AutoSSL validates over HTTP and fails if DNS hasn't landed.
 
 ### 2. Clone and deploy
@@ -76,9 +86,10 @@ three ports are free, builds the images and starts the stack. **Back up
 
 ### 3. cPanel domains + Apache proxy + TLS
 
-First create the domains so Apache has vhosts to include into:
-WHM » **Create a New Account** for `workk.work`, then inside that account's
-cPanel » **Domains**, add `app.workk.work` and `api.workk.work`.
+First create the domain so Apache has a vhost to include into. The cPanel
+accounts on this server are at their domain limits, so add `workk.work` as an
+**addon domain** inside an existing account (bookmyvessel) rather than creating
+a new account: cPanel » **Domains** » Create A New Domain.
 
 Then wire the vhosts to the containers:
 
@@ -88,14 +99,16 @@ sudo bash deploy/prod/setup-cpanel-apache.sh
 
 cPanel regenerates `httpd.conf` from templates, so hand-edited vhosts get wiped.
 The script writes proper userdata includes under
-`/etc/apache2/conf.d/userdata/{std,ssl}/2_4/<user>/<domain>/eagle.conf`, which
-survive rebuilds, then runs `ensure_vhost_includes` and restarts Apache.
+`/etc/apache2/conf.d/userdata/{std,ssl}/2_4/<user>/workk.work/eagle.conf`, which
+survive rebuilds, then runs `ensure_vhost_includes` and restarts Apache. It
+auto-detects the owning account with `/scripts/whoowns`, so it does not matter
+which cPanel the addon domain lives under.
 
 Finally: WHM » **Manage AutoSSL** » Run AutoSSL to issue certificates.
 
 ### 4. First login
 There is no production seed step — `POST /api/auth/register` is public, so
-create the first org by signing up at `https://app.workk.work`. Lock down or
+create the first org by signing up at `https://workk.work/app`. Lock down or
 remove public registration before this is customer-facing.
 
 ### 5. The agent binary
@@ -131,7 +144,8 @@ docker compose --env-file .env.workk -f $C exec -T postgres \
 
 - **CORS is wide open** — `main.ts` uses `enableCors({ origin: true })` and the
   socket gateway does the same, so any website can call the API with a stolen
-  token. Restrict to `https://app.workk.work`.
+  token. The single-domain layout means the dashboard itself never needs CORS,
+  so this can be tightened to `https://workk.work` with nothing to lose.
 - **Schema sync uses `prisma db push`** on every boot. Once there is real
   customer data, switch to committed migrations + `prisma migrate deploy`.
 - **Screenshot disk growth.** Retention (Basic 15d / Pro 30d / Business 60d)

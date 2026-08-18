@@ -1,8 +1,13 @@
-# Eagle production stack for workk.work — tuned for a SHARED server that already
-# runs other projects behind an existing nginx.
+# Eagle production stack for workk.work — tuned for a SHARED cPanel/WHM server
+# that already runs other projects behind Apache.
+#
+# Single-domain layout (one vhost, one certificate, no CORS):
+#   workk.work/      -> web        (marketing)
+#   workk.work/app   -> dashboard  (SPA, built with base=/app/)
+#   workk.work/api   -> api        (Nest already prefixes /api)
 #
 # Differences from infra/docker-compose.prod.yml:
-#   * every published port binds to 127.0.0.1 (nginx terminates TLS and proxies in)
+#   * every published port binds to 127.0.0.1 (Apache terminates TLS and proxies in)
 #   * host ports are env-configurable and default off the common 3000/4000/8080
 #   * MinIO is dropped: presigned URLs signed against the internal `minio:9000`
 #     host are unreachable from a browser, so screenshots would render broken.
@@ -87,8 +92,10 @@ services:
       context: ../..
       dockerfile: apps/dashboard/Dockerfile
       args:
-        # Baked in at BUILD time — rebuild this image if the API domain changes.
+        # Both are baked in at BUILD time — rebuild this image if either changes.
+        # Same-origin as the API, so the browser makes no cross-origin calls.
         VITE_API_URL: ${PUBLIC_API_URL:?set me}
+        VITE_BASE_PATH: ${DASHBOARD_BASE_PATH:-/app/}
     restart: unless-stopped
     ports:
       - "127.0.0.1:${DASHBOARD_HOST_PORT:-8180}:80"

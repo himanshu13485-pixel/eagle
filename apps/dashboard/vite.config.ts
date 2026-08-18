@@ -6,4 +6,7 @@ import react from "@vitejs/plugin-react";
 // shared entry twice and drop its re-exports).
 export default defineConfig({
   plugins: [react()],
+  // Served from a sub-path in production (workk.work/app) so the whole platform
+  // fits on one domain + one certificate. Unset in dev, where it stays at "/".
+  base: process.env.VITE_BASE_PATH || "/",
 });

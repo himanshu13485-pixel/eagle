@@ -4,6 +4,9 @@ FROM node:20-bookworm-slim AS build
 WORKDIR /app
 ARG VITE_API_URL=http://localhost:4000
 ENV VITE_API_URL=$VITE_API_URL
+# Sub-path the SPA is served from (e.g. "/app/"). Baked in at build time.
+ARG VITE_BASE_PATH=/
+ENV VITE_BASE_PATH=$VITE_BASE_PATH
 COPY . .
 RUN npm install && npm run build -w @eagle/dashboard
 

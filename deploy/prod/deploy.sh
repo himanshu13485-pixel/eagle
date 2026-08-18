@@ -27,9 +27,9 @@ JWT_ACCESS_SECRET=$(gen)
 JWT_REFRESH_SECRET=$(gen)
 DEVICE_TOKEN_SECRET=$(gen)
 
-PUBLIC_API_URL=https://api.workk.work
-AGENT_PUBLIC_URL=https://api.workk.work
-DASHBOARD_URL=https://app.workk.work
+PUBLIC_API_URL=https://workk.work
+AGENT_PUBLIC_URL=https://workk.work
+DASHBOARD_URL=https://workk.work/app
 
 API_HOST_PORT=4100
 DASHBOARD_HOST_PORT=8180
