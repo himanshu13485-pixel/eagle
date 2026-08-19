@@ -69,11 +69,29 @@ EOF
 # is bad, a restart would take them all down — so write, test, and roll back
 # automatically on failure, then reload gracefully instead of restarting.
 WROTE=()
+# The plain-HTTP vhost sends everything to HTTPS instead of serving it, so a
+# visitor who types the bare domain does not stay on an unencrypted page.
+# ACME challenges are excluded — redirecting them can break AutoSSL renewal.
+REDIRECT="$(cat <<'EOF'
+RewriteEngine On
+RewriteCond %{HTTPS} !=on
+RewriteCond %{REQUEST_URI} !^/\.well-known/
+RewriteRule ^/?(.*) https://%{HTTP_HOST}/$1 [R=301,L]
+EOF
+)"
+
 for mode in std ssl; do
   dir="/etc/apache2/conf.d/userdata/${mode}/2_4/${OWNER}/${DOMAIN}"
   mkdir -p "$dir"
-  printf '%s
+  if [ "$mode" = "std" ]; then
+    printf '%s
+
+%s
+' "$REDIRECT" "$CONF" > "${dir}/eagle.conf"
+  else
+    printf '%s
 ' "$CONF" > "${dir}/eagle.conf"
+  fi
   WROTE+=("${dir}/eagle.conf")
   say "wrote ${dir}/eagle.conf"
 done

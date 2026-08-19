@@ -104,7 +104,13 @@ survive rebuilds, then runs `ensure_vhost_includes` and restarts Apache. It
 auto-detects the owning account with `/scripts/whoowns`, so it does not matter
 which cPanel the addon domain lives under.
 
-Finally: WHM » **Manage AutoSSL** » Run AutoSSL to issue certificates.
+Finally: WHM » **Manage AutoSSL** » Run AutoSSL to issue certificates. cPanel
+often issues a wildcard for the account automatically, in which case this is
+already done — check with `openssl s_client -connect workk.work:443`.
+
+The plain-HTTP vhost 301s everything to HTTPS, excluding `/.well-known/` so
+AutoSSL renewal is not broken by the redirect. Re-run the script after any
+certificate change; it is idempotent.
 
 ### 4. First login
 There is no production seed step — `POST /api/auth/register` is public, so
