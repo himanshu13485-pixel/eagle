@@ -111,7 +111,21 @@ There is no production seed step — `POST /api/auth/register` is public, so
 create the first org by signing up at `https://workk.work/app`. Lock down or
 remove public registration before this is customer-facing.
 
-### 5. The agent binary
+### 5. The Super Admin console
+`PlatformAdmin` has no registration route and the dev seed does not create one,
+so a fresh production database has an empty Super Admin console. Create the
+first one inside the running container — credentials come from env so they are
+never committed:
+
+```bash
+cd /home/eagle-app
+docker compose --env-file .env.workk -f deploy/prod/docker-compose.workk.yml exec   -e ADMIN_EMAIL=admin@workk.work -e ADMIN_PASSWORD='your-password'   api node dist/bootstrap-admin.js
+```
+
+Then log in at `https://workk.work/app/admin/login`. Re-running with the same
+email resets that admin's password, which is also the lockout recovery path.
+
+### 6. The agent binary
 `GET /api/agent/binary` streams the Windows agent, and the generated installer
 `.bat` downloads from `AGENT_PUBLIC_URL`. Build the exe
 (`npm run build:exe -w @eagle/agent`) and drop it on the `agentbin` volume at
