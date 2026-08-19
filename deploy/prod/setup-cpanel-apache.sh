@@ -65,16 +65,37 @@ ProxyPassReverse / http://127.0.0.1:${WEB_PORT}/
 EOF
 )"
 
+# Every other site on this server shares this Apache. If the generated config
+# is bad, a restart would take them all down — so write, test, and roll back
+# automatically on failure, then reload gracefully instead of restarting.
+WROTE=()
 for mode in std ssl; do
   dir="/etc/apache2/conf.d/userdata/${mode}/2_4/${OWNER}/${DOMAIN}"
   mkdir -p "$dir"
-  printf '%s\n' "$CONF" > "${dir}/eagle.conf"
+  printf '%s
+' "$CONF" > "${dir}/eagle.conf"
+  WROTE+=("${dir}/eagle.conf")
   say "wrote ${dir}/eagle.conf"
 done
 
-say "Rebuilding Apache config…"
+rollback() {
+  printf '
+[1;31mConfig test failed — rolling back.[0m
+' >&2
+  for f in "${WROTE[@]}"; do rm -f "$f"; done
+  /scripts/ensure_vhost_includes --all-users >/dev/null 2>&1 || true
+  die "Apache config was left exactly as it was. Nothing restarted, no site affected."
+}
+
+say "Rebuilding vhost includes…"
 /scripts/ensure_vhost_includes --all-users
-apachectl configtest || die "Apache config test failed — includes left in place for inspection."
-/scripts/restartsrv_httpd
+
+say "Testing Apache config before touching the running server…"
+apachectl configtest || rollback
+
+# Graceful: finishes in-flight requests on the other sites instead of dropping
+# them. No downtime for bookmyvessel / netvork / grapme.
+say "Reloading Apache gracefully…"
+apachectl graceful
 
 say "Done. Next: WHM » Manage AutoSSL » Run AutoSSL to issue the certificate."
