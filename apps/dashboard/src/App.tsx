@@ -21,7 +21,6 @@ import { DataManagement } from "./pages/DataManagement";
 import { HelpSupport } from "./pages/HelpSupport";
 import { AdminLayout } from "./components/AdminLayout";
 import { getAdminToken } from "./lib/adminApi";
-import { AdminLogin } from "./pages/admin/AdminLogin";
 import { AdminOverview } from "./pages/admin/AdminOverview";
 import { AdminClients } from "./pages/admin/AdminClients";
 import { AdminStaff } from "./pages/admin/AdminStaff";
@@ -44,7 +43,7 @@ function Protected({ children }: { children: JSX.Element }) {
 }
 
 function AdminProtected({ children }: { children: JSX.Element }) {
-  if (!getAdminToken()) return <Navigate to="/admin/login" replace />;
+  if (!getAdminToken()) return <Navigate to="/login" replace />;
   return <AdminLayout>{children}</AdminLayout>;
 }
 
@@ -71,7 +70,8 @@ export default function App() {
       <Route path="/help" element={<Protected><HelpSupport /></Protected>} />
 
       {/* Super Admin console (separate platform auth) */}
-      <Route path="/admin/login" element={<AdminLogin />} />
+      {/* One sign-in for both account types; the old URL still works. */}
+      <Route path="/admin/login" element={<Navigate to="/login" replace />} />
       <Route path="/admin" element={<AdminProtected><AdminOverview /></AdminProtected>} />
       <Route path="/admin/clients" element={<AdminProtected><AdminClients /></AdminProtected>} />
       <Route path="/admin/live" element={<AdminProtected><AdminLive /></AdminProtected>} />

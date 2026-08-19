@@ -33,7 +33,10 @@ export async function adminApi<T>(path: string, options: RequestInit = {}): Prom
   });
   if (res.status === 401) {
     clearAdmin();
-    if (location.pathname !== "/admin/login") location.href = "/admin/login";
+    // Single sign-in page, and BASE_URL-aware: the app is served from /app in
+    // production, so a hard redirect to a bare path leaves the dashboard.
+    const loginUrl = `${import.meta.env.BASE_URL}login`.replace(/\/{2,}/g, "/");
+    if (location.pathname !== loginUrl) location.href = loginUrl;
     throw new Error("Unauthorized");
   }
   if (!res.ok) throw new Error((await res.text()) || `Request failed: ${res.status}`);
@@ -53,7 +56,7 @@ export async function adminLogin(email: string, password: string): Promise<Platf
 
 export function adminLogout() {
   clearAdmin();
-  location.href = "/admin/login";
+  location.href = `${import.meta.env.BASE_URL}login`.replace(/\/{2,}/g, "/");
 }
 
 // ---- Act as a client (open their dashboard from the admin console) ----

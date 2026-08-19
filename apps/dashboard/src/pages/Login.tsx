@@ -2,12 +2,19 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { BRAND } from "@eagle/shared";
 import { useAuth } from "../lib/auth";
+import { adminLogin } from "../lib/adminApi";
+
+/** A wrong-credentials rejection, as opposed to a network or server fault. */
+function isCredentialError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  return /unauthorized|invalid credentials|401/i.test(msg);
+}
 
 export function Login() {
   const { login } = useAuth();
   const nav = useNavigate();
-  const [email, setEmail] = useState("owner@eagle.test");
-  const [password, setPassword] = useState("eagle1234");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -16,17 +23,27 @@ export function Login() {
     setBusy(true);
     setError("");
     try {
-      await login(email, password);
-      nav("/");
+      // One sign-in for both account types. Customer accounts are the common
+      // case, so try those first and fall back to a platform admin. The error
+      // is deliberately identical either way, so this cannot be used to probe
+      // which addresses are admins.
+      try {
+        await login(email, password);
+        nav("/");
+      } catch (orgErr) {
+        if (!isCredentialError(orgErr)) throw orgErr;
+        await adminLogin(email, password);
+        nav("/admin");
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";
-      if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.includes("fetch")) {
-        setError("Can't reach the API on :4000. Is the backend running? (npm run dev:api)");
-      } else if (msg.includes("Unauthorized") || msg.includes("Invalid credentials")) {
-        setError("Invalid email or password. (Did you run npm run db:seed?)");
-      } else {
-        setError(msg || "Login failed.");
-      }
+      setError(
+        isCredentialError(err)
+          ? "Invalid email or password."
+          : msg.toLowerCase().includes("fetch")
+            ? "Can't reach the server. Check your connection and try again."
+            : msg || "Sign in failed.",
+      );
     } finally {
       setBusy(false);
     }
@@ -73,7 +90,6 @@ export function Login() {
             <Link to="/forgot" className="text-amber-400 hover:underline">Forgot password?</Link>
             <span className="text-gray-400">New here? <Link to="/signup" className="font-semibold text-amber-400 hover:underline">Start free trial</Link></span>
           </div>
-          <p className="text-xs text-gray-400">Demo: owner@eagle.test / eagle1234</p>
         </form>
       </div>
     </div>
