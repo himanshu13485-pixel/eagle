@@ -104,6 +104,9 @@ services:
     build:
       context: ../..
       dockerfile: apps/web/Dockerfile
+      args:
+        # Relative path — same domain, so it works over http and https alike.
+        VITE_DASHBOARD_URL: ${DASHBOARD_LINK:-/app}
     restart: unless-stopped
     ports:
       - "127.0.0.1:${WEB_HOST_PORT:-8181}:80"

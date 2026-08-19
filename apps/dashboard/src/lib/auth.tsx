@@ -55,7 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("eagle.user");
     localStorage.removeItem("eagle.actingAs");
     setUser(null);
-    location.href = "/login";
+    // Sub-path aware — a hard redirect bypasses the router's basename.
+    location.href = `${import.meta.env.BASE_URL}login`.replace(/\/{2,}/g, "/");
   }
 
   return <Ctx.Provider value={{ user, loading, login, register, logout }}>{children}</Ctx.Provider>;

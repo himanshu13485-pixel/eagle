@@ -37,7 +37,10 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     // Don't bounce the admin to /login when an embedded org view's token lapses.
     if (!overrideToken) {
       clearTokens();
-      if (location.pathname !== "/login") location.href = "/login";
+      // BASE_URL, not a bare "/login": the app is served from a sub-path in
+      // production (/app), and a hard redirect skips the router's basename.
+      const loginUrl = `${import.meta.env.BASE_URL}login`.replace(/\/{2,}/g, "/");
+      if (location.pathname !== loginUrl) location.href = loginUrl;
     }
     throw new Error("Unauthorized");
   }

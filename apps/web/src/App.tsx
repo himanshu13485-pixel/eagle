@@ -1,7 +1,10 @@
 import { BRAND, PLANS, NAV_FEATURES, TRUST_BADGES } from "@eagle/shared";
 import type { PlanDefinition } from "@eagle/shared";
 
-const DASHBOARD_URL = "http://localhost:5173";
+// Where the dashboard lives. In production it is a sub-path on the same
+// domain (/app); in dev it is the separate Vite server on :5173.
+const DASHBOARD_URL =
+  (import.meta.env.VITE_DASHBOARD_URL as string) ?? "http://localhost:5173";
 const SIGNUP_URL = `${DASHBOARD_URL}/signup`;
 const LOGIN_URL = `${DASHBOARD_URL}/login`;
 
