@@ -112,6 +112,7 @@ export function Footer() {
           <FooterCol title="Product">
             <FooterLink to="/features">Features</FooterLink>
             <FooterLink to="/pricing">Pricing</FooterLink>
+            <FooterLink to="/uninstall">Uninstall agent</FooterLink>
             <FooterExternal href={SIGNUP_URL}>Start free trial</FooterExternal>
             <FooterExternal href={LOGIN_URL}>Log in</FooterExternal>
           </FooterCol>

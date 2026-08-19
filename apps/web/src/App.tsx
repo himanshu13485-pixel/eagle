@@ -9,6 +9,7 @@ import Contact from "./pages/Contact";
 import Privacy from "./pages/Privacy";
 import Terms from "./pages/Terms";
 import ResponsibleUse from "./pages/ResponsibleUse";
+import Uninstall from "./pages/Uninstall";
 import NotFound from "./pages/NotFound";
 
 /** Browsers keep the old scroll offset across client-side navigations. */
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/privacy" element={<Privacy />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/responsible-use" element={<ResponsibleUse />} />
+          <Route path="/uninstall" element={<Uninstall />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
