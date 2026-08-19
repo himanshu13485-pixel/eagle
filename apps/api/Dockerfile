@@ -2,6 +2,10 @@
 #   docker build -f apps/api/Dockerfile -t eagle-api .
 FROM node:20-bookworm-slim AS build
 WORKDIR /app
+# Prisma's schema engine links against libssl; node:20-bookworm-slim ships
+# without it, so `prisma generate` / `db push` fail with "Schema engine error"
+# and the container crash-loops. ca-certificates is needed for outbound TLS.
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY . .
 RUN npm install
 # Local dev uses SQLite; production uses Postgres — the models are portable.
@@ -12,6 +16,11 @@ RUN npx prisma generate --schema apps/api/prisma/schema.prisma \
 FROM node:20-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production
+# Prisma's schema engine links against libssl; node:20-bookworm-slim ships
+# without it, so `prisma generate` / `db push` fail with "Schema engine error"
+# and the container crash-loops. ca-certificates is needed for outbound TLS.
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/packages ./packages
 COPY --from=build /app/apps/api/dist ./apps/api/dist

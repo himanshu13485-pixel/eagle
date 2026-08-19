@@ -68,15 +68,17 @@ say "Starting the stack…"
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE" up -d
 
 say "Waiting for the API to answer…"
-# There is no /health route, so "answering at all" is the readiness signal:
-# any HTTP status (including 404) means Nest is listening; 000 means it is not.
+# There is no /health route, so "answering at all" is the readiness signal: any
+# HTTP status (including 404) means Nest is listening; 000 means it is not.
+# curl already prints 000 on a failed connection, so no `|| echo 000` fallback
+# here — that appended a second one, and "000000" passed the != "000" test and
+# reported a dead API as up.
 for i in $(seq 1 60); do
-  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 \
-         "http://127.0.0.1:${API_HOST_PORT}/api/auth/login" 2>/dev/null || echo 000)
-  if [ "$code" != "000" ]; then
-    say "API is up on 127.0.0.1:${API_HOST_PORT} (HTTP $code)"
-    break
-  fi
+  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://127.0.0.1:${API_HOST_PORT}/api/auth/login" 2>/dev/null) || code=000
+  case "$code" in
+    000|"") ;;
+    *) say "API is up on 127.0.0.1:${API_HOST_PORT} (HTTP $code)"; break ;;
+  esac
   [ "$i" = 60 ] && die "API did not come up. Check: docker compose -f $COMPOSE logs api"
   sleep 2
 done
@@ -86,8 +88,7 @@ docker compose --env-file "$ENV_FILE" -f "$COMPOSE" ps
 cat <<'NEXT'
 
 Next steps (once, on this server):
-  1. Create workk.work in WHM (Create a New Account), plus the `app` and `api`
-     subdomains in that account's cPanel.
+  1. Make sure workk.work exists in cPanel (an addon domain is fine).
   2. Point Apache at the containers (cPanel userdata includes):
        bash deploy/prod/setup-cpanel-apache.sh
      then issue TLS via WHM » Manage AutoSSL » Run AutoSSL.
