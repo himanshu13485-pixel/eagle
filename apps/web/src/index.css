@@ -5,9 +5,44 @@
 :root {
   color-scheme: light;
 }
+
 html {
   scroll-behavior: smooth;
 }
+
 body {
   font-family: "Inter", system-ui, sans-serif;
+  background-color: theme("colors.paper");
+  color: theme("colors.ink");
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  /* Small-caps label that sits above a heading. */
+  .eyebrow {
+    @apply text-[0.7rem] font-semibold uppercase tracking-eyebrow text-inkSoft;
+  }
+
+  /* Hairline rule used to separate editorial blocks. */
+  .hairline {
+    @apply border-t border-rule;
+  }
+
+  /* Figures in stat blocks and pricing align on the decimal. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Respect users who prefer less motion. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

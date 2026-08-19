@@ -19,6 +19,7 @@ import { WorkspaceModule } from "./workspace/workspace.module";
 import { RetentionModule } from "./retention/retention.module";
 import { AdminModule } from "./admin/admin.module";
 import { NotificationsModule } from "./notifications/notifications.module";
+import { ContactModule } from "./contact/contact.module";
 import { InvoicesModule } from "./invoices/invoices.module";
 
 @Module({
@@ -45,6 +46,7 @@ import { InvoicesModule } from "./invoices/invoices.module";
     AdminModule,
     NotificationsModule,
     InvoicesModule,
+    ContactModule,
   ],
 })
 export class AppModule {}
