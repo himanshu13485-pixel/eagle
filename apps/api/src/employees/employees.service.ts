@@ -1,5 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { randomBytes } from "crypto";
+import { existsSync, statSync } from "fs";
+import { join } from "path";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
@@ -256,6 +258,14 @@ export class EmployeesService {
     const exeUrl = `${server}/api/agent/binary`;
     const safe = employee.name.replace(/[^a-z0-9]+/gi, "_");
 
+    // Exact byte size of the published Windows agent, baked into the installer
+    // so it can reject a truncated download — a dropped connection leaves a
+    // partial exe that is big enough to pass a "not tiny" check but is a corrupt
+    // PE that fails to launch (Win32 error 216). 0 = binary not published yet.
+    const winExePath =
+      process.env.AGENT_EXE_PATH || join(process.cwd(), "..", "agent", "dist-bin", "eagle-agent.exe");
+    const expectedSize = existsSync(winExePath) ? statSync(winExePath).size : 0;
+
     if (os === "mac") {
       const sh = [
         "#!/bin/bash",
@@ -317,12 +327,20 @@ export class EmployeesService {
       `SET "SERVER=${server}"`,
       `SET "TOKEN=${enrollToken}"`,
       `SET "EXE_URL=${exeUrl}"`,
+      `SET "EXPECTED_SIZE=${expectedSize}"`,
       'SET "INSTALL_DIR=%LOCALAPPDATA%\\EagleAgent"',
       'SET "EXE=%INSTALL_DIR%\\eagle-agent.exe"',
       "",
       "echo ============================================",
       `echo   Eagle Monitoring Agent - ${employee.name}`,
       "echo ============================================",
+      ":: This agent is 64-bit; it cannot run on 32-bit Windows.",
+      'if /I "%PROCESSOR_ARCHITECTURE%"=="x86" if not defined PROCESSOR_ARCHITEW6432 (',
+      "    echo ERROR: This PC is running 32-bit Windows, which cannot run the agent.",
+      "    echo Please install on a 64-bit Windows PC, or contact support.",
+      "    pause",
+      "    exit /b 1",
+      ")",
       'if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"',
       ":: Trust the agent's own folder with Windows Defender (installer is admin-elevated).",
       "echo Registering the agent folder with Windows Defender...",
@@ -341,18 +359,31 @@ export class EmployeesService {
       "    exit /b 1",
       ")",
       "",
-      ":: PowerShell's DownloadFile also saves error pages happily. The real",
-      ":: binary is ~100 MB, so anything tiny is a failure response, not the agent.",
+      ":: Verify the download is the whole binary. A dropped connection leaves a",
+      ":: partial exe that is large but corrupt, and PowerShell's DownloadFile",
+      ":: will also save an error page — both fail to launch (Win32 error 216).",
+      ":: The installer knows the exact published size, so it checks for that.",
       'for %%A in ("%EXE%") do set "EXE_SIZE=%%~zA"',
-      ':: An unset variable would break the comparison syntax below.',
       'if "%EXE_SIZE%"=="" set "EXE_SIZE=0"',
-      "if %EXE_SIZE% LSS 1000000 (",
-      '    del /f /q "%EXE%" >nul 2>&1',
-      "    echo ERROR: The server did not return the agent program.",
-      "    echo It sent %EXE_SIZE% bytes - an error message, not the agent.",
-      "    echo The agent binary has not been published on the server yet.",
-      "    pause",
-      "    exit /b 1",
+      ":: Exact match when the server told us the size; otherwise fall back to a",
+      ":: sanity floor so a stale installer still rejects an obvious error page.",
+      "if not \"%EXPECTED_SIZE%\"==\"0\" (",
+      "    if not \"%EXE_SIZE%\"==\"%EXPECTED_SIZE%\" (",
+      '        del /f /q "%EXE%" >nul 2>&1',
+      "        echo ERROR: The agent did not download completely.",
+      "        echo Got %EXE_SIZE% of %EXPECTED_SIZE% bytes - the connection likely dropped.",
+      "        echo Check the network and run this installer again.",
+      "        pause",
+      "        exit /b 1",
+      "    )",
+      ") else (",
+      "    if %EXE_SIZE% LSS 1000000 (",
+      '        del /f /q "%EXE%" >nul 2>&1',
+      "        echo ERROR: The server did not return the agent program.",
+      "        echo It sent %EXE_SIZE% bytes - an error message, not the agent.",
+      "        pause",
+      "        exit /b 1",
+      "    )",
       ")",
       "",
       ":: Hidden launcher (VBScript) so the agent runs with NO window — nothing to close.",
