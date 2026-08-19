@@ -8,7 +8,12 @@ ENV VITE_API_URL=$VITE_API_URL
 ARG VITE_BASE_PATH=/
 ENV VITE_BASE_PATH=$VITE_BASE_PATH
 COPY . .
-RUN npm install && npm run build -w @eagle/dashboard
+# --ignore-scripts: this installs the whole monorepo, so without it npm runs
+# the API's Prisma postinstall — a large engine download the SPA never uses.
+# It made the image slow and failed the build outright on a network blip.
+# Vite's esbuild/rollup binaries come from optional deps, not postinstall, so
+# skipping scripts is safe here.
+RUN npm install --ignore-scripts && npm run build -w @eagle/dashboard
 
 FROM nginx:alpine
 COPY --from=build /app/apps/dashboard/dist /usr/share/nginx/html

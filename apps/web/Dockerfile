@@ -6,7 +6,12 @@ WORKDIR /app
 ARG VITE_DASHBOARD_URL=http://localhost:5173
 ENV VITE_DASHBOARD_URL=$VITE_DASHBOARD_URL
 COPY . .
-RUN npm install && npm run build -w @eagle/web
+# --ignore-scripts: this installs the whole monorepo, so without it npm runs
+# the API's Prisma postinstall — a large engine download the SPA never uses.
+# It made the image slow and failed the build outright on a network blip.
+# Vite's esbuild/rollup binaries come from optional deps, not postinstall, so
+# skipping scripts is safe here.
+RUN npm install --ignore-scripts && npm run build -w @eagle/web
 
 FROM nginx:alpine
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html

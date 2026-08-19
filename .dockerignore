@@ -1,0 +1,17 @@
+# Keep the build context small and hermetic. Without this, a stray npm install
+# on the server would copy host node_modules into the image — Linux images
+# built from a Windows or macOS checkout then fail on native binaries.
+node_modules
+**/node_modules
+dist
+**/dist
+.git
+.github
+*.log
+.env
+.env.*
+!.env.example
+apps/agent/dist-bin
+apps/api/storage
+**/*.db
+**/*.tsbuildinfo
