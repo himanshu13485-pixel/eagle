@@ -7,7 +7,16 @@ WORKDIR /app
 # and the container crash-loops. ca-certificates is needed for outbound TLS.
 RUN apt-get update -y && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY . .
-RUN npm install
+# This image genuinely needs Prisma's engines, and the download from
+# binaries.prisma.sh drops mid-transfer on this server often enough to fail
+# whole deploys with ECONNRESET. Give npm longer timeouts and retry the install
+# twice more before giving up. No shell variables here on purpose: Docker
+# expands $NAME in RUN against build args and would blank an undefined one.
+RUN npm config set fetch-retries 5 \
+ && npm config set fetch-retry-mintimeout 20000 \
+ && npm config set fetch-retry-maxtimeout 180000 \
+ && (npm install || (echo "npm install failed — retry 1/2" && sleep 15 && npm install) \
+                 || (echo "npm install failed — retry 2/2" && sleep 30 && npm install))
 # Local dev uses SQLite; production uses Postgres — the models are portable.
 RUN sed -i 's/provider = "sqlite"/provider = "postgresql"/' apps/api/prisma/schema.prisma
 RUN npx prisma generate --schema apps/api/prisma/schema.prisma \
