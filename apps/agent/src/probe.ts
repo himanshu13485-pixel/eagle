@@ -16,6 +16,13 @@ export interface ForegroundInfo {
   url: string | null; // best-effort website host parsed from browser titles
 }
 
+// Emits "proc|url|title". Title goes last because it may itself contain "|";
+// the caller rejoins everything after the second field.
+//
+// The URL comes from UI Automation, reading the browser's address bar directly.
+// Window titles are page titles ("Gmail", "YouTube") and almost never contain a
+// domain, so inferring the site from them classified everything as an app and
+// left the website reports permanently empty.
 const PS_FOREGROUND = `
 Add-Type @"
 using System;
@@ -33,7 +40,29 @@ $sb = New-Object System.Text.StringBuilder 1024
 $pid2 = 0
 [void][W]::GetWindowThreadProcessId($h, [ref]$pid2)
 $proc = (Get-Process -Id $pid2 -ErrorAction SilentlyContinue).ProcessName
-Write-Output ("{0}|{1}" -f $proc, $sb.ToString())
+
+$url = ''
+$browsers = @('chrome','msedge','firefox','brave','opera','vivaldi')
+if ($proc -and $browsers -contains $proc.ToLower()) {
+  try {
+    Add-Type -AssemblyName UIAutomationClient -ErrorAction Stop
+    Add-Type -AssemblyName UIAutomationTypes -ErrorAction Stop
+    $root = [System.Windows.Automation.AutomationElement]::FromHandle($h)
+    if ($root) {
+      $cond = New-Object System.Windows.Automation.PropertyCondition(
+        [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
+        [System.Windows.Automation.ControlType]::Edit)
+      # The omnibox is the first Edit in the window chrome, so this stops early
+      # rather than walking the whole page tree.
+      $edit = $root.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cond)
+      if ($edit) {
+        $vp = $edit.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+        if ($vp) { $url = $vp.Current.Value }
+      }
+    }
+  } catch { $url = '' }
+}
+Write-Output ("{0}|{1}|{2}" -f $proc, $url, $sb.ToString())
 `;
 
 // Compute idle-seconds entirely inside C# — reading the struct back in PowerShell
@@ -85,9 +114,13 @@ export async function getForeground(): Promise<ForegroundInfo> {
   if (process.platform !== "win32") return { app: null, title: null, url: null };
   try {
     const out = await runPs(PS_FOREGROUND);
-    const [proc, ...rest] = out.split("|");
+    const [proc, rawUrl, ...rest] = out.split("|");
     const title = rest.join("|").trim() || null;
-    return { app: proc?.trim() || null, title, url: hostFromTitle(proc, title) };
+    const app = proc?.trim() || null;
+    // Address bar first; fall back to the old title guess for browsers whose
+    // omnibox UI Automation cannot reach (and for private windows).
+    const url = hostFromUrl(rawUrl) ?? hostFromTitle(app, title);
+    return { app, title, url };
   } catch {
     return { app: null, title: null, url: null };
   }
@@ -115,10 +148,32 @@ export async function getIdleSeconds(): Promise<number> {
   }
 }
 
-const BROWSERS = ["chrome", "msedge", "firefox", "brave", "opera"];
+const BROWSERS = ["chrome", "msedge", "firefox", "brave", "opera", "vivaldi"];
+
+/**
+ * Host from the address-bar value. The omnibox often shows a URL with no
+ * scheme ("github.com/foo"), and shows a search phrase rather than a URL when
+ * the user is typing — those must not be recorded as websites.
+ */
+function hostFromUrl(raw: string | undefined): string | null {
+  const value = raw?.trim();
+  if (!value) return null;
+  // Never record what someone types into the box, only somewhere they went.
+  if (/\s/.test(value)) return null;
+  // Internal pages (chrome://settings, about:blank) are not websites.
+  if (/^(chrome|edge|brave|opera|about|file|view-source|devtools):/i.test(value)) return null;
+  try {
+    const withScheme = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+    const host = new URL(withScheme).hostname.toLowerCase().replace(/^www\./, "");
+    // A bare word ("localhost", a typo) is not a site; require a real dot.
+    return host.includes(".") ? host : null;
+  } catch {
+    return null;
+  }
+}
 
 /** Best-effort host extraction from browser window titles (no URL bar access without extensions). */
-function hostFromTitle(proc: string | undefined, title: string | null): string | null {
+function hostFromTitle(proc: string | undefined | null, title: string | null): string | null {
   if (!proc || !title) return null;
   if (!BROWSERS.includes(proc.toLowerCase())) return null;
   const m = title.match(/([a-z0-9-]+\.)+[a-z]{2,}/i);
