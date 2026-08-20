@@ -52,7 +52,7 @@ const active = "bg-white/10 text-white ring-1 ring-inset ring-white/10 border-l-
 
 export function Sidebar() {
   return (
-    <aside className="flex h-screen w-64 flex-col bg-ink px-4 py-6 text-white">
+    <aside className="flex h-screen w-64 shrink-0 flex-col bg-ink px-4 py-6 text-white">
       <div className="mb-8 flex items-center gap-2 px-2">
         <span className="grid h-9 w-9 place-items-center rounded-full bg-black ring-1 ring-white/10">
           <svg viewBox="0 0 24 24" className="h-5 w-5 text-amber-400" fill="currentColor">

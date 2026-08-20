@@ -32,7 +32,7 @@ export function DataManagement() {
   const [open, setOpen] = useState(false);
   const [toast, setToast] = useState("");
   // filters
-  const [search, setSearch] = useState("");
+  const [employeeId, setEmployeeId] = useState("");
   const [status, setStatus] = useState("ALL");
   const [action, setAction] = useState("ALL");
   const [automated, setAutomated] = useState(false);
@@ -48,16 +48,16 @@ export function DataManagement() {
 
   const query = useMemo(() => {
     const p = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
-    if (search.trim()) p.set("search", search.trim());
+    if (employeeId) p.set("employeeId", employeeId);
     if (status !== "ALL") p.set("status", status);
     if (action !== "ALL") p.set("action", action);
     if (automated) p.set("includeAutomated", "true");
     return p.toString();
-  }, [search, status, action, automated, page, pageSize]);
+  }, [employeeId, status, action, automated, page, pageSize]);
 
   const load = useCallback(() => { api<ListResp>(`/data-requests?${query}`).then(setData).catch(() => setData(null)); }, [query]);
   useEffect(() => { load(); }, [load]);
-  useEffect(() => { setPage(1); }, [search, status, action, automated, pageSize]);
+  useEffect(() => { setPage(1); }, [employeeId, status, action, automated, pageSize]);
 
   async function cancelReq(id: string) {
     if (!confirm("Cancel this request?")) return;
@@ -110,7 +110,10 @@ export function DataManagement() {
         <div className="grid gap-3 p-5 sm:grid-cols-3">
           <label className="text-sm">
             <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">User</span>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="🔍 Search Employees" className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm" />
+            <select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm">
+              <option value="">All users</option>
+              {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
           </label>
           <label className="text-sm">
             <span className="mb-1 block text-xs font-semibold uppercase text-gray-500">Status</span>
@@ -130,7 +133,7 @@ export function DataManagement() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-max text-left text-sm">
+          <table className="w-full text-left text-sm">
             <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
               <tr>
                 <th className="px-5 py-3">#</th><th className="px-5 py-3">Request</th><th className="px-5 py-3">Requested</th>

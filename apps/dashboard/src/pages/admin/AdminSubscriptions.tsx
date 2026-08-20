@@ -79,7 +79,7 @@ export function AdminSubscriptions() {
         <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search client…" className="w-64 rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm" />
       </div>
       <div className="overflow-x-auto rounded-2xl bg-white shadow-sm">
-        <table className="w-full min-w-max text-left text-sm">
+        <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
             <tr>
               <th className="px-5 py-3">Client</th><th className="px-5 py-3">Plan</th><th className="px-5 py-3">Billing</th>

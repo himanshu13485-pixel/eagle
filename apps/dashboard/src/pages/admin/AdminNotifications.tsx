@@ -121,7 +121,7 @@ export function AdminNotifications() {
             <p className="px-6 pb-6 text-sm text-gray-400">The full sent history is visible to Super Admins.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-max text-left text-sm">
+              <table className="w-full text-left text-sm">
                 <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                   <tr><th className="px-5 py-3">Type</th><th className="px-5 py-3">Target</th><th className="px-5 py-3">Title</th><th className="px-5 py-3">By</th><th className="px-5 py-3">When</th></tr>
                 </thead>

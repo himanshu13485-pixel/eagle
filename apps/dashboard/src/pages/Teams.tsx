@@ -122,14 +122,14 @@ export function Teams() {
                 </select>
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-max text-left text-sm">
+                <table className="w-full text-left text-sm">
                   <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                     <tr>
-                      <th className="px-5 py-3">#</th>
+                      <th className="hidden px-5 py-3 sm:table-cell">#</th>
                       <th className="px-5 py-3">Employee name</th>
                       <th className="px-5 py-3">Status</th>
-                      <th className="px-5 py-3">Last screenshot</th>
-                      <th className="px-5 py-3">Last app used</th>
+                      <th className="hidden px-5 py-3 lg:table-cell">Last screenshot</th>
+                      <th className="hidden px-5 py-3 xl:table-cell">Last app used</th>
                       <th className="px-5 py-3 text-center">Actions</th>
                       <th className="px-5 py-3 text-center">Manage</th>
                     </tr>
@@ -137,16 +137,16 @@ export function Teams() {
                   <tbody className="divide-y divide-gray-100">
                     {members.length ? members.map((m, i) => (
                       <tr key={m.id} className={`hover:bg-gray-50/60 ${m.active ? "" : "opacity-60"}`}>
-                        <td className="px-5 py-3 text-gray-400">{i + 1}</td>
+                        <td className="hidden px-5 py-3 text-gray-400 sm:table-cell">{i + 1}</td>
                         <td className="px-5 py-3">
                           <div className="flex items-center gap-3">
                             <Avatar name={m.name} url={m.avatarUrl} />
-                            <div><div className="font-semibold text-gray-900">{m.name}</div><div className="text-xs text-gray-400">{m.email || "Employee"}</div></div>
+                            <div className="min-w-0"><div className="truncate font-semibold text-gray-900">{m.name}</div><div className="truncate text-xs text-gray-400">{m.email || "Employee"}</div></div>
                           </div>
                         </td>
                         <td className="px-5 py-3"><StatusBadge active={m.active} status={m.status} /></td>
-                        <td className="px-5 py-3 text-gray-500">{fmtRelative(m.lastScreenshotAt)}</td>
-                        <td className="px-5 py-3 text-gray-500">{m.lastApp ?? "—"}</td>
+                        <td className="hidden px-5 py-3 text-gray-500 lg:table-cell">{fmtRelative(m.lastScreenshotAt)}</td>
+                        <td className="hidden px-5 py-3 text-gray-500 xl:table-cell">{m.lastApp ?? "—"}</td>
                         <td className="px-5 py-3">
                           <div className="flex items-center justify-center">
                             <IconBtn label="Screenshot request" onClick={() => screenshotRequest(m)} disabled={!m.active}>📷</IconBtn>

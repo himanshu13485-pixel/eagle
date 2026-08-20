@@ -213,7 +213,7 @@ function SnapshotModal({ onClose }: { onClose: () => void }) {
 
             <Section title="Team Performance Highlights">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-max text-left text-sm">
+                <table className="w-full text-left text-sm">
                   <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
                     <tr><th className="px-4 py-2.5">Name</th><th className="px-4 py-2.5">Total Hours</th><th className="px-4 py-2.5">Focus</th><th className="px-4 py-2.5">Context Switches</th><th className="px-4 py-2.5">Peak Hour</th><th className="px-4 py-2.5">Major Activities</th></tr>
                   </thead>
@@ -247,7 +247,7 @@ function SnapTable({ head, rows, empty }: { head: string[]; rows: { name: string
   if (!rows.length) return <p className="rounded-xl bg-gray-50 px-4 py-6 text-center text-sm text-gray-400">{empty}</p>;
   return (
     <div className="overflow-x-auto rounded-xl border border-gray-100">
-      <table className="w-full min-w-max text-left text-sm">
+      <table className="w-full text-left text-sm">
         <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500"><tr>{head.map((h) => <th key={h} className="px-4 py-2.5">{h}</th>)}</tr></thead>
         <tbody className="divide-y divide-gray-100">
           {rows.map((r) => (

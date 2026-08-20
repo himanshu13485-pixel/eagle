@@ -44,7 +44,9 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         <div className="shrink-0 border-t border-white/10 p-4 text-xs text-gray-500">Platform administration · manages all client accounts</div>
       </aside>
 
-      <div className="flex flex-1 flex-col overflow-hidden">
+      {/* min-w-0 so a wide table scrolls inside its own wrapper rather than
+          widening this column and scrolling the whole page. */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3">
           <span className="text-sm font-semibold text-gray-400">Super Admin</span>
           <div className="flex items-center gap-3">

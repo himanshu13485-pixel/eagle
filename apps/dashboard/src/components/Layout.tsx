@@ -18,7 +18,10 @@ export function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar />
-      <div className="flex flex-1 flex-col overflow-hidden">
+      {/* min-w-0: a flex item defaults to min-width:auto, so without this any
+          wide child (a table, a long name) pushes the whole column past the
+          viewport and the entire page scrolls sideways instead of the table. */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <ActingAsBanner />
         <Topbar />
         <main className="flex-1 overflow-y-auto bg-gray-50 p-6">{children}</main>

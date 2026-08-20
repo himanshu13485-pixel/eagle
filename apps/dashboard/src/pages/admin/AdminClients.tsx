@@ -64,7 +64,7 @@ export function AdminClients() {
       </div>
 
       <div className="overflow-x-auto rounded-2xl bg-white shadow-sm">
-        <table className="w-full min-w-max text-left text-sm">
+        <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
             <tr>
               <th className="px-5 py-3">#</th><th className="px-5 py-3">Client</th><th className="px-5 py-3">Status</th><th className="px-5 py-3">Tier</th>

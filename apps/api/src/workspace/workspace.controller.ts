@@ -50,6 +50,7 @@ export class WorkspaceController {
   dataReqs(
     @CurrentUser() u: RequestUser,
     @Query("search") search?: string,
+    @Query("employeeId") employeeId?: string,
     @Query("status") status?: string,
     @Query("action") action?: string,
     @Query("includeAutomated") includeAutomated?: string,
@@ -58,6 +59,7 @@ export class WorkspaceController {
   ) {
     return this.ws.listDataRequests(u.orgId, {
       search,
+      employeeId,
       status,
       action,
       includeAutomated: includeAutomated === "true" || includeAutomated === "1",

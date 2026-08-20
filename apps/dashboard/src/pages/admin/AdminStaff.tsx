@@ -26,7 +26,7 @@ export function AdminStaff() {
     <div>
       <AdminHeader title="Platform Staff" subtitle="Super Admins, Sub Admins and Salespeople." action={<button onClick={() => setAdd(true)} className="rounded-full bg-brand px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-dark">+ Add Staff</button>} />
       <div className="overflow-x-auto rounded-2xl bg-white shadow-sm">
-        <table className="w-full min-w-max text-left text-sm">
+        <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
             <tr><th className="px-5 py-3">#</th><th className="px-5 py-3">Name</th><th className="px-5 py-3">Email</th><th className="px-5 py-3">Role</th><th className="px-5 py-3">Status</th><th className="px-5 py-3 text-center">Manage</th></tr>
           </thead>

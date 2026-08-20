@@ -6,6 +6,9 @@ const MAX_DAYS_PER_REQUEST: Record<string, number> = { BASIC: 14, PROFESSIONAL: 
 
 interface DataReqQuery {
   search?: string;
+  /** Exact employee filter, from the User dropdown. Preferred over `search`,
+   *  which matches on name and so collapses two people with the same name. */
+  employeeId?: string;
   status?: string;
   action?: string;
   includeAutomated?: boolean;
@@ -57,7 +60,14 @@ export class WorkspaceService {
     if (!q.includeAutomated) where.source = "USER";
     if (q.status && q.status !== "ALL") where.status = q.status;
     if (q.action && q.action !== "ALL") where.action = q.action;
-    if (q.search?.trim()) {
+    if (q.employeeId) {
+      // Scoped to the org so an id from another tenant cannot be probed.
+      const emp = await this.prisma.employee.findFirst({
+        where: { id: q.employeeId, orgId },
+        select: { id: true },
+      });
+      where.targetEmployeeId = emp?.id ?? "__none__";
+    } else if (q.search?.trim()) {
       const emps = await this.prisma.employee.findMany({
         where: { orgId, name: { contains: q.search.trim() } },
         select: { id: true },
