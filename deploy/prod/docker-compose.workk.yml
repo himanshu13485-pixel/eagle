@@ -66,6 +66,11 @@ services:
 
       # Agent installer binary (see DEPLOY.md "The agent binary in production").
       AGENT_EXE_PATH: ${AGENT_EXE_PATH:-/data/agent/eagle-agent.exe}
+      # Webcam snapshots need ffmpeg, which agents fetch from /api/agent/ffmpeg.
+      # Without this the API looked inside the image at a path that only exists
+      # in a source checkout, so the download 404'd and webcam silently did
+      # nothing. Points at the same mounted folder as the agent binary.
+      AGENT_FFMPEG_PATH: ${AGENT_FFMPEG_PATH:-/data/agent/ffmpeg.exe}
 
       # Optional integrations — each stays in DRY mode until filled in.
       SMTP_HOST: ${SMTP_HOST:-}

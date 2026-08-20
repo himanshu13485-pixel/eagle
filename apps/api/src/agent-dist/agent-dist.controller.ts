@@ -43,7 +43,13 @@ export class AgentDistController {
   @Get("ffmpeg")
   ffmpeg(@Res() res: Response) {
     const path = this.ffmpegPath();
-    if (!existsSync(path)) throw new NotFoundException("ffmpeg not bundled on the server.");
+    if (!existsSync(path)) {
+      // Agents fail silently when this 404s — the webcam overlay is just
+      // skipped — so name the expected path to make the gap diagnosable.
+      throw new NotFoundException(
+        `ffmpeg not published on the server (looked in ${path}). Place a Windows ffmpeg.exe there, or set AGENT_FFMPEG_PATH.`,
+      );
+    }
     res.download(path, "ffmpeg.exe");
   }
 

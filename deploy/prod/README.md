@@ -143,6 +143,26 @@ docker cp eagle-agent.exe eagle-api-1:/data/agent/eagle-agent.exe
 
 It is unsigned, so SmartScreen will warn on every install until you sign it.
 
+### 7. ffmpeg (only if you use webcam snapshots)
+Webcam capture shells out to ffmpeg, which agents download once from
+`GET /api/agent/ffmpeg`. Nothing ships it, so that route 404s until you put a
+Windows build on the `agentbin` volume — and agents fail *silently* when it
+does, skipping the webcam and sending a plain screenshot.
+
+```bash
+scp ffmpeg.exe root@<server>:/home/eagle-app/data/agent/ffmpeg.exe
+```
+
+`AGENT_FFMPEG_PATH` already points there in the compose file.
+
+**Licensing:** serving ffmpeg to agents is redistribution. Use an LGPL build
+and keep its licence notice, or the GPL build only if you accept the GPL
+obligations for what you distribute alongside it. Check this before shipping to
+customers.
+
+Webcam also has to be switched on per organisation under
+**Settings → Webcam Photos**; it is off by default and is opt-in by design.
+
 ## Operations
 
 ```bash
