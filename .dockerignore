@@ -13,5 +13,9 @@ dist
 !.env.example
 apps/agent/dist-bin
 apps/api/storage
+# Runtime data bind-mounted into the containers (Postgres, screenshots, and the
+# ~90MB agent binary). It lives under the repo root on the server, so without
+# this every build ships it to the daemon as build context.
+data
 **/*.db
 **/*.tsbuildinfo
