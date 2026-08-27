@@ -320,7 +320,7 @@ function SettingsModal({ employee, onClose, onSaved }: { employee: EmployeeDto; 
         <div className="grid gap-5 lg:grid-cols-2">
           <div className="rounded-2xl border border-gray-100 p-5">
             <h4 className="font-bold text-gray-900">Screenshot Modes</h4>
-            <p className="mb-3 text-sm text-gray-500">Choose how Eagle captures this employee's screen activity.</p>
+            <p className="mb-3 text-sm text-gray-500">Choose how Workk captures this employee's screen activity.</p>
             <div className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">Screenshots &amp; activity are auto-pruned per your plan's retention window.</div>
             <div className="space-y-3">
               <ModeCard icon="🕒" title="Periodic screenshots" desc="Automatically captures at a fixed interval." on={s.periodicScreenshots} onChange={(v) => patch({ periodicScreenshots: v })} />

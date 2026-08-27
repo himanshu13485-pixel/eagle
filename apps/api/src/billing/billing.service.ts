@@ -33,7 +33,7 @@ export class BillingService {
       orderId: cfOrderId,
       amount,
       customerId: orgId,
-      customerEmail: owner?.email ?? "owner@eaglesee.local",
+      customerEmail: owner?.email ?? "owner@workk.work",
       returnUrl,
     });
 

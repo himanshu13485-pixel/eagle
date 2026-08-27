@@ -52,7 +52,7 @@ export default function About() {
               in a stand-up.
             </p>
             <p>
-              Eagle exists to replace that guesswork with a record — one that is captured
+              Workk exists to replace that guesswork with a record — one that is captured
               automatically, kept only as long as it is useful, and narrow enough that reasonable
               people can agree to it.
             </p>
@@ -93,7 +93,7 @@ export default function About() {
           </div>
           <div className="space-y-6 text-paper/70">
             <p className="leading-relaxed">
-              Eagle is run by a small team, which means you get someone who knows the product
+              Workk is run by a small team, which means you get someone who knows the product
               rather than a queue. If you are weighing this against Hubstaff or Time Doctor, say
               so — we will tell you honestly where we are behind.
             </p>

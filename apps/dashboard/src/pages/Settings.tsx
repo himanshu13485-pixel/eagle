@@ -121,7 +121,7 @@ function ReportsTab() {
 
         <div className="mt-4 rounded-xl bg-sky-50 px-4 py-3 text-sm">
           <p className="font-semibold text-sky-700">ⓘ Didn't receive reports?</p>
-          <p className="text-sky-600">Please check your spam folder and mark EagleSee as safe.</p>
+          <p className="text-sky-600">Please check your spam folder and mark Workk as safe.</p>
         </div>
       </div>
 
@@ -136,13 +136,13 @@ function ReportsTab() {
           <div className="flex items-center justify-end gap-2.5 bg-ink px-6 py-5 text-white">
             <span className="grid h-9 w-9 place-items-center rounded-full bg-black text-base">🦅</span>
             <span className="flex flex-col leading-tight">
-              <span className="text-lg font-bold">Eagle<span className="text-brand">See</span></span>
+              <span className="text-lg font-bold">Workk</span>
               <span className="text-[10px] tracking-wide text-gray-400">Productivity Tracking Software</span>
             </span>
           </div>
           {/* light snapshot body */}
           <div className="border-l-4 border-brand bg-indigo-50/50 px-6 py-6">
-            <p className="text-lg font-black text-gray-900">EagleSee</p>
+            <p className="text-lg font-black text-gray-900">Workk</p>
             <p className="mt-2 text-base font-bold text-gray-800">Team Productivity Snapshot</p>
             <p className="mt-1 text-sm text-gray-500">{today}</p>
             <p className="mt-4 text-sm text-gray-700">Active Employees: <span className="font-bold text-brand">{active} / {emps.length}</span></p>
@@ -179,7 +179,7 @@ function SnapshotModal({ onClose }: { onClose: () => void }) {
           <span className="text-sm text-gray-400">Team Productivity Snapshot · {range}</span>
           <div className="flex items-center gap-2.5">
             <span className="flex flex-col items-end leading-tight">
-              <span className="text-lg font-bold">Eagle<span className="text-brand">See</span></span>
+              <span className="text-lg font-bold">Workk</span>
               <span className="text-[10px] tracking-wide text-gray-400">Productivity Tracking Software</span>
             </span>
             <span className="grid h-9 w-9 place-items-center rounded-full bg-black text-base">🦅</span>
@@ -279,7 +279,7 @@ function ScreenshotTab() {
   return (
     <>
       <div className="grid gap-6 lg:grid-cols-2">
-        <Card title="Screenshot Modes" desc="Choose how Eagle captures screen activity.">
+        <Card title="Screenshot Modes" desc="Choose how Workk captures screen activity.">
           <Row title="Periodic Screenshots" desc="Captures at a fixed interval."><Toggle on={s.periodicScreenshots} onChange={(v) => patch({ periodicScreenshots: v })} /></Row>
           <Row title="Switched App Screenshots" desc="Captures on app switch."><Toggle on={s.appSwitchScreenshots} onChange={(v) => patch({ appSwitchScreenshots: v })} /></Row>
           <Row title="Webcam Photos" desc="Optional webcam snapshots (opt-in)."><Toggle on={s.webcamPhotos} onChange={(v) => patch({ webcamPhotos: v })} /></Row>

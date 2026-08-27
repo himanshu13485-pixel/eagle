@@ -7,9 +7,9 @@ export default function ResponsibleUse() {
       title="Responsible use"
       summary="Monitoring software is easy to misuse. This is the line we draw, what we built to keep you on the right side of it, and what we will not help with."
     >
-      <Clause n="01" title="What Eagle is for">
+      <Clause n="01" title="What Workk is for">
         <p>
-          Eagle is workforce-visibility software for employer-owned devices, in the same category
+          Workk is workforce-visibility software for employer-owned devices, in the same category
           as Hubstaff, Time Doctor or ActivTrak. It is for organisations that want an accurate
           record of work done on their own equipment, and are willing to tell their staff that the
           record exists.
@@ -42,7 +42,7 @@ export default function ResponsibleUse() {
       </Clause>
 
       <Clause n="04" title="What we will not support">
-        <p>We terminate accounts, without refund, where Eagle is used to monitor:</p>
+        <p>We terminate accounts, without refund, where Workk is used to monitor:</p>
         <ul>
           <li>A partner, spouse, family member, or child.</li>
           <li>A person&rsquo;s own personal device without their informed, freely-given consent.</li>
@@ -51,7 +51,7 @@ export default function ResponsibleUse() {
           <li>Union organising, or any activity protected by employment or labour law.</li>
         </ul>
         <p>
-          If you contact support asking how to hide Eagle from the person using the machine, we will
+          If you contact support asking how to hide Workk from the person using the machine, we will
           not help, and we will look at the account.
         </p>
       </Clause>
@@ -73,7 +73,7 @@ export default function ResponsibleUse() {
 
       <Clause n="06" title="Reporting misuse">
         <p>
-          If you believe an Eagle account is being used against these rules — including if you are
+          If you believe an Workk account is being used against these rules — including if you are
           the person being monitored — contact{" "}
           <a href={`mailto:${CONTACT.privacy}`} className="font-semibold text-goldDeep hover:underline">
             {CONTACT.privacy}

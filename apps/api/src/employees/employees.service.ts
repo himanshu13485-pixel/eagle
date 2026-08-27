@@ -269,14 +269,14 @@ export class EmployeesService {
     if (os === "mac") {
       const sh = [
         "#!/bin/bash",
-        "# Eagle monitoring agent — macOS installer",
+        "# Workk monitoring agent — macOS installer",
         `SERVER="${server}"`,
         `TOKEN="${enrollToken}"`,
         'DIR="$HOME/.eagle-agent"',
         'BIN="$DIR/eagle-agent"',
         'PLIST="$HOME/Library/LaunchAgents/com.eagle.agent.plist"',
         "",
-        `echo "Installing Eagle agent for ${employee.name}..."`,
+        `echo "Installing Workk agent for ${employee.name}..."`,
         'mkdir -p "$DIR"',
         'launchctl unload "$PLIST" 2>/dev/null || true',
         "pkill -f eagle-agent 2>/dev/null || true",
@@ -312,7 +312,7 @@ export class EmployeesService {
         'echo "You may also be asked to allow Automation for the active-app check."',
         "",
       ].join("\n");
-      return { filename: `Eagle_${safe}_Installer.command`, content: sh, enrollToken, server };
+      return { filename: `Workk_${safe}_Installer.command`, content: sh, enrollToken, server };
     }
 
     const bat = [
@@ -332,7 +332,7 @@ export class EmployeesService {
       'SET "EXE=%INSTALL_DIR%\\eagle-agent.exe"',
       "",
       "echo ============================================",
-      `echo   Eagle Monitoring Agent - ${employee.name}`,
+      `echo   Workk Monitoring Agent - ${employee.name}`,
       "echo ============================================",
       ":: This agent is 64-bit; it cannot run on 32-bit Windows.",
       'if /I "%PROCESSOR_ARCHITECTURE%"=="x86" if not defined PROCESSOR_ARCHITEW6432 (',
@@ -354,7 +354,7 @@ export class EmployeesService {
       'if not exist "%EXE%" powershell -NoProfile -ExecutionPolicy Bypass -Command "try{[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12;(New-Object Net.WebClient).DownloadFile(\'%EXE_URL%\',\'%EXE%\')}catch{exit 1}"',
       'if not exist "%EXE%" (',
       "    echo ERROR: Could not download the agent from %EXE_URL%",
-      "    echo Make sure the Eagle server is reachable from this PC.",
+      "    echo Make sure the Workk server is reachable from this PC.",
       "    pause",
       "    exit /b 1",
       ")",
@@ -397,13 +397,13 @@ export class EmployeesService {
       "echo Starting agent in the background (no window)...",
       'wscript.exe "%INSTALL_DIR%\\launch.vbs"',
       "",
-      "echo Done. Eagle agent is installed and running.",
+      "echo Done. Workk agent is installed and running.",
       "timeout /t 4 >nul",
       "exit /b 0",
       "",
     ].join("\r\n");
 
-    return { filename: `Eagle_${safe}_Installer.bat`, content: bat, enrollToken, server };
+    return { filename: `Workk_${safe}_Installer.bat`, content: bat, enrollToken, server };
   }
 
   /** Soft on/off. Deactivating pauses the agent (dormant, data kept) and frees the seat;
@@ -443,18 +443,18 @@ export class EmployeesService {
       ":: Deactivate on the server first (frees the seat, keeps history) using the agent's own token.",
       "echo Deactivating on the server...",
       "powershell -NoProfile -Command \"try{ $c = Get-Content -Raw '%USERPROFILE%\\.eagle-agent\\config.json' | ConvertFrom-Json; if($c.deviceToken){ Invoke-RestMethod -Uri '%SERVER%/api/devices/deactivate' -Method Post -Headers @{ Authorization = ('Bearer ' + $c.deviceToken) } -TimeoutSec 10 | Out-Null } }catch{} \" >nul 2>&1",
-      "echo Removing Eagle monitoring agent...",
+      "echo Removing Workk monitoring agent...",
       "taskkill /F /IM eagle-agent.exe >nul 2>&1",
       'schtasks /Delete /TN "EagleAgent" /F >nul 2>&1',
       "powershell -NoProfile -Command \"Remove-MpPreference -ExclusionPath '%LOCALAPPDATA%\\EagleAgent'\" >nul 2>&1",
       'rmdir /S /Q "%LOCALAPPDATA%\\EagleAgent" >nul 2>&1',
       'rmdir /S /Q "%USERPROFILE%\\.eagle-agent" >nul 2>&1',
-      "echo Eagle agent removed from this PC.",
+      "echo Workk agent removed from this PC.",
       "timeout /t 3 >nul",
       "exit /b 0",
       "",
     ].join("\r\n");
-    return { filename: `Eagle_${safe}_Uninstaller.bat`, content: bat };
+    return { filename: `Workk_${safe}_Uninstaller.bat`, content: bat };
   }
 
   /** Deletes an employee, their devices, and all their data (screenshot files + rows). */

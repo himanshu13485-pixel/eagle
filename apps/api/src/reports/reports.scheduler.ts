@@ -38,7 +38,7 @@ export class ReportsScheduler {
   async sendSnapshot(orgId: string, recipients: string[], from?: string, to?: string) {
     const report = await this.reports.teamSnapshot(orgId, from, to);
     const html = renderTeamSnapshotHtml(report);
-    const subject = `EagleSee — Team Productivity Snapshot (${report.from.slice(0, 10)})`;
+    const subject = `Workk — Team Productivity Snapshot (${report.from.slice(0, 10)})`;
     return this.mail.send(recipients, subject, html);
   }
 }

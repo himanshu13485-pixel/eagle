@@ -32,11 +32,11 @@ function Send-Cmd([string]$c) { try { Invoke-RestMethod -Uri "$script:base/$c" -
 
 $ni = New-Object System.Windows.Forms.NotifyIcon
 $ni.Icon = [System.Drawing.SystemIcons]::Application
-$ni.Text = "EagleSee"
+$ni.Text = "Workk"
 $ni.Visible = $true
 
 $menu = New-Object System.Windows.Forms.ContextMenuStrip
-$miStat = New-Object System.Windows.Forms.ToolStripMenuItem("EagleSee: connecting..."); $miStat.Enabled = $false
+$miStat = New-Object System.Windows.Forms.ToolStripMenuItem("Workk: connecting..."); $miStat.Enabled = $false
 $menu.Items.Add($miStat) | Out-Null
 $menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator)) | Out-Null
 $miIn = New-Object System.Windows.Forms.ToolStripMenuItem("Clock In"); $miIn.add_Click({ Send-Cmd "clock-in" }); $menu.Items.Add($miIn) | Out-Null
@@ -53,14 +53,14 @@ $timer.add_Tick({
     $script:fails = 0
     $state = if ($s.working) { "Working" } else { "Paused" }
     $mins = [int]($s.trackedTodaySec / 60)
-    $miStat.Text = "EagleSee: $state - $mins min today"
-    $ni.Text = "EagleSee - $state"
+    $miStat.Text = "Workk: $state - $mins min today"
+    $ni.Text = "Workk - $state"
     $miIn.Enabled = -not $s.working
     $miPause.Enabled = $s.working
     $miOut.Enabled = $s.working
   } else {
     $script:fails++
-    $miStat.Text = "EagleSee: connecting..."
+    $miStat.Text = "Workk: connecting..."
     # Agent stopped/switched to silent mode → remove the tray icon and exit.
     if ($script:fails -ge 8) { $ni.Visible = $false; $ni.Dispose(); [System.Windows.Forms.Application]::Exit() }
   }

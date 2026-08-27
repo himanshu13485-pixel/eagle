@@ -29,7 +29,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         <div className="flex shrink-0 items-center gap-2.5 px-6 py-5">
           <span className="grid h-9 w-9 place-items-center rounded-full bg-black text-lg">🦅</span>
           <div className="leading-tight">
-            <div className="text-lg font-bold text-white">Eagle<span className="text-brand">See</span></div>
+            <div className="text-lg font-bold text-white">Workk</div>
             <div className="text-[10px] uppercase tracking-widest text-amber-400">Admin Console</div>
           </div>
         </div>

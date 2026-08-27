@@ -19,7 +19,7 @@ async function bootstrap() {
   const port = Number(process.env.API_PORT ?? 4000);
   await app.listen(port);
   // eslint-disable-next-line no-console
-  console.log(`Eagle API listening on http://localhost:${port}/api`);
+  console.log(`Workk API listening on http://localhost:${port}/api`);
   // eslint-disable-next-line no-console
   console.log(`AGENT_PUBLIC_URL (baked into installers) = ${process.env.AGENT_PUBLIC_URL || "(unset → localhost!)"}`);
 }

@@ -47,7 +47,7 @@ export default function Features() {
     <>
       <PageHead
         eyebrow="Features"
-        title={<>Everything Eagle sees — and <Accent>everything it does not</Accent>.</>}
+        title={<>Everything Workk sees — and <Accent>everything it does not</Accent>.</>}
         lede="Three layers: what gets captured on the machine, what that turns into, and how you run it day to day. Nothing here logs keystrokes or reads personal messages."
       />
 

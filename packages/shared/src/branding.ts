@@ -2,11 +2,11 @@ import { PlanTier } from "./enums.js";
 
 /** Single source of truth for product identity — swap these to re-skin. */
 export const BRAND = {
-  name: "Eagle",
+  name: "Workk",
   tagline: "Real-time work visibility without micromanaging.",
   headline: { line1: "How Work Actually Happens", line2: "See Across Your Team" },
   description:
-    "Eagle gives owners and managers real-time work visibility through screenshots, live screen view, work replay, app usage, idle time, and productivity reports — so they can manage with facts, not assumptions.",
+    "Workk gives owners and managers real-time work visibility through screenshots, live screen view, work replay, app usage, idle time, and productivity reports — so they can manage with facts, not assumptions.",
   supportPhone: "+91 9016310001",
   colors: {
     // Marketing (dark charcoal + gold)

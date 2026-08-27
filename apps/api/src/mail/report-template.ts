@@ -52,7 +52,7 @@ export function renderTeamSnapshotHtml(r: TeamSnapshotReport): string {
   return `<!doctype html><html><body style="margin:0;background:#f4f5f7;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111">
   <div style="max-width:760px;margin:0 auto;padding:24px 12px">
     <div style="background:${INK};color:#fff;border-radius:12px 12px 0 0;padding:20px 24px;text-align:right">
-      <div style="font-size:18px;font-weight:800">Eagle<span style="color:${BRAND}">See</span></div>
+      <div style="font-size:18px;font-weight:800">Workk</div>
       <div style="font-size:10px;color:#9aa0b4;letter-spacing:.04em">Productivity Tracking Software</div>
     </div>
     <div style="background:#fff;border-radius:0 0 12px 12px;padding:24px">
@@ -78,7 +78,7 @@ export function renderTeamSnapshotHtml(r: TeamSnapshotReport): string {
         <tbody>${highlights}</tbody>
       </table>
 
-      <p style="margin-top:24px;color:#999;font-size:12px">You're receiving this because your email was added as a report recipient in EagleSee → Settings → Reports &amp; Notifications.</p>
+      <p style="margin-top:24px;color:#999;font-size:12px">You're receiving this because your email was added as a report recipient in Workk → Settings → Reports &amp; Notifications.</p>
     </div>
   </div>
 </body></html>`;

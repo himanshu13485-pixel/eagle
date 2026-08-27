@@ -5,19 +5,19 @@ export default function Terms() {
   return (
     <LegalPage
       title="Terms of service"
-      summary="The agreement between your organisation and us for use of Eagle. The short version: you may monitor your own devices, lawfully and with disclosure; we keep the service running and your data contained."
+      summary="The agreement between your organisation and us for use of Workk. The short version: you may monitor your own devices, lawfully and with disclosure; we keep the service running and your data contained."
     >
       <Clause n="01" title="The agreement">
         <p>
           These terms are between <strong>[LEGAL ENTITY NAME]</strong> (&ldquo;we&rdquo;) and the
-          organisation that creates an Eagle account (&ldquo;you&rdquo;). By creating an account or
+          organisation that creates an Workk account (&ldquo;you&rdquo;). By creating an account or
           installing the agent, you accept them. If you are agreeing on behalf of a company, you
           confirm you are authorised to bind it.
         </p>
       </Clause>
 
-      <Clause n="02" title="What you may use Eagle for">
-        <p>Eagle is licensed for monitoring devices that your organisation owns or lawfully controls, used by people who work for you. You agree that you will:</p>
+      <Clause n="02" title="What you may use Workk for">
+        <p>Workk is licensed for monitoring devices that your organisation owns or lawfully controls, used by people who work for you. You agree that you will:</p>
         <ul>
           <li>Disclose the monitoring to everyone subject to it, before it begins.</li>
           <li>Establish a lawful basis for the monitoring in every jurisdiction where your staff work, and keep records of it.</li>
@@ -66,7 +66,7 @@ export default function Terms() {
 
       <Clause n="06" title="Your data">
         <p>
-          The data Eagle captures is yours. We process it to provide the service, as described in
+          The data Workk captures is yours. We process it to provide the service, as described in
           the <a href="/privacy" className="font-semibold text-goldDeep hover:underline">privacy policy</a>.
           We do not sell it, and we do not use it to train models.
         </p>
@@ -102,7 +102,7 @@ export default function Terms() {
           you paid in that period.
         </p>
         <p>
-          <strong>You indemnify us</strong> against claims arising from your use of Eagle in breach
+          <strong>You indemnify us</strong> against claims arising from your use of Workk in breach
           of clause 2 or 3 — including claims brought by your own staff where you failed to
           disclose monitoring or to establish a lawful basis.
         </p>

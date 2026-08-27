@@ -24,7 +24,7 @@ export function ForgotPassword() {
   return (
     <div className="grid min-h-screen place-items-center bg-ink p-6 text-white">
       <div className="w-full max-w-sm">
-        <div className="text-2xl font-black">Eagle<span className="text-brand">See</span></div>
+        <div className="text-2xl font-black">Workk</div>
         <h2 className="mt-6 text-3xl font-black">Reset your password</h2>
         {sent ? (
           <div className="mt-4 space-y-4">

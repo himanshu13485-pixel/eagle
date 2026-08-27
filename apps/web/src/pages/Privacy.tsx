@@ -5,11 +5,11 @@ export default function Privacy() {
   return (
     <LegalPage
       title="Privacy policy"
-      summary="What Eagle collects, who controls it, how long it is kept, and how to get it removed. Written for two audiences: the organisation that buys Eagle, and the people whose work it records."
+      summary="What Workk collects, who controls it, how long it is kept, and how to get it removed. Written for two audiences: the organisation that buys Workk, and the people whose work it records."
     >
       <Clause n="01" title="Who controls the data">
         <p>
-          Eagle is supplied by <strong>[LEGAL ENTITY NAME]</strong>, registered at{" "}
+          Workk is supplied by <strong>[LEGAL ENTITY NAME]</strong>, registered at{" "}
           <strong>[REGISTERED ADDRESS]</strong> (&ldquo;we&rdquo;, &ldquo;us&rdquo;).
         </p>
         <p>

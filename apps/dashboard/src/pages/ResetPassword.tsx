@@ -31,7 +31,7 @@ export function ResetPassword() {
   return (
     <div className="grid min-h-screen place-items-center bg-ink p-6 text-white">
       <div className="w-full max-w-sm">
-        <div className="text-2xl font-black">Eagle<span className="text-brand">See</span></div>
+        <div className="text-2xl font-black">Workk</div>
         <h2 className="mt-6 text-3xl font-black">Set a new password</h2>
         {!token ? (
           <p className="mt-4 text-rose-400">This reset link is missing its token. Request a new one from <Link to="/forgot" className="text-amber-400 underline">Forgot password</Link>.</p>

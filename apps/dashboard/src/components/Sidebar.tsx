@@ -61,7 +61,6 @@ export function Sidebar() {
         </span>
         <span className="text-lg font-extrabold">
           {BRAND.name}
-          <span className="text-amber-400">See</span>
         </span>
       </div>
 

@@ -6,7 +6,7 @@ import { PageHead } from "../components/PageHead";
 const UNINSTALLER_URL = "/api/agent/uninstaller";
 
 const STEPS = [
-  ["Download the uninstaller", "It is a small .bat script — the button below saves Eagle_Uninstaller.bat to your Downloads folder."],
+  ["Download the uninstaller", "It is a small .bat script — the button below saves Workk_Uninstaller.bat to your Downloads folder."],
   ["Run it as administrator", "Right-click the file and choose Run as administrator. It will ask for elevation, which it needs to undo the install."],
   ["Let it finish", "It stops the agent, removes the scheduled task and the Defender exclusion, deletes the agent files, and frees the seat on the server. It closes on its own."],
 ];
@@ -16,7 +16,7 @@ export default function Uninstall() {
     <>
       <PageHead
         eyebrow="Uninstall"
-        title={<>Remove the Eagle agent <Accent>from a PC</Accent>.</>}
+        title={<>Remove the Workk agent <Accent>from a PC</Accent>.</>}
         lede="This fully removes the monitoring agent from a Windows machine and releases its seat. It takes a few seconds and needs administrator rights."
       />
 
@@ -47,7 +47,7 @@ export default function Uninstall() {
                 Download uninstaller
               </a>
               <p className="mt-3 text-xs text-inkSoft">
-                Windows only · Eagle_Uninstaller.bat · run as administrator
+                Windows only · Workk_Uninstaller.bat · run as administrator
               </p>
             </div>
 

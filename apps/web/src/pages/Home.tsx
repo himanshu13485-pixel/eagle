@@ -98,7 +98,7 @@ export default function Home() {
       {/* ── Pillars ──────────────────────────────────────────────────── */}
       <Section>
         <div className="max-w-reading">
-          <Eyebrow index="01">What Eagle does</Eyebrow>
+          <Eyebrow index="01">What Workk does</Eyebrow>
           <Display className="mt-5">
             Six instruments, one <Accent>honest picture</Accent> of the working day.
           </Display>
@@ -130,7 +130,7 @@ export default function Home() {
           </div>
           <div className="space-y-5 text-paper/70">
             <p className="leading-relaxed">
-              Eagle is built for employer-owned devices and disclosed monitoring — the same
+              Workk is built for employer-owned devices and disclosed monitoring — the same
               category as Hubstaff or Time Doctor. Every device is enrolled with a token issued
               from your dashboard, so nothing starts recording by accident.
             </p>

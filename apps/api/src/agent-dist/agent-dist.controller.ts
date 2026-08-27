@@ -75,19 +75,19 @@ export class AgentDistController {
       ":: Free the seat on the server first, using the agent's own local token.",
       "echo Deactivating on the server...",
       "powershell -NoProfile -Command \"try{ $c = Get-Content -Raw '%USERPROFILE%\\.eagle-agent\\config.json' | ConvertFrom-Json; if($c.deviceToken){ Invoke-RestMethod -Uri '%SERVER%/api/devices/deactivate' -Method Post -Headers @{ Authorization = ('Bearer ' + $c.deviceToken) } -TimeoutSec 10 | Out-Null } }catch{} \" >nul 2>&1",
-      "echo Removing Eagle monitoring agent...",
+      "echo Removing Workk monitoring agent...",
       "taskkill /F /IM eagle-agent.exe >nul 2>&1",
       'schtasks /Delete /TN "EagleAgent" /F >nul 2>&1',
       "powershell -NoProfile -Command \"Remove-MpPreference -ExclusionPath '%LOCALAPPDATA%\\EagleAgent'\" >nul 2>&1",
       'rmdir /S /Q "%LOCALAPPDATA%\\EagleAgent" >nul 2>&1',
       'rmdir /S /Q "%USERPROFILE%\\.eagle-agent" >nul 2>&1',
-      "echo Eagle agent removed from this PC.",
+      "echo Workk agent removed from this PC.",
       "timeout /t 3 >nul",
       "exit /b 0",
       "",
     ].join("\r\n");
     res.setHeader("Content-Type", "application/octet-stream");
-    res.setHeader("Content-Disposition", 'attachment; filename="Eagle_Uninstaller.bat"');
+    res.setHeader("Content-Disposition", 'attachment; filename="Workk_Uninstaller.bat"');
     res.send(bat);
   }
 }

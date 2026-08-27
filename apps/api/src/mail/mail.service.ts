@@ -10,7 +10,7 @@ import { createTransport, type Transporter } from "nodemailer";
 export class MailService {
   private readonly log = new Logger("Mail");
   private readonly transporter: Transporter | null;
-  private readonly from = process.env.SMTP_FROM || "EagleSee <no-reply@eaglesee.local>";
+  private readonly from = process.env.SMTP_FROM || "Workk <no-reply@workk.work>";
 
   constructor() {
     if (process.env.SMTP_HOST) {

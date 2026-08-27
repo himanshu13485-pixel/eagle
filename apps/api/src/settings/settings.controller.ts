@@ -114,7 +114,7 @@ export class SettingsController {
   async testChannel(@CurrentUser() user: RequestUser, @Param("id") id: string) {
     const ch = await this.prisma.notificationChannel.findFirst({ where: { id, orgId: user.orgId } });
     if (!ch) throw new NotFoundException("Channel not found");
-    const r = await this.messaging.send(ch.type, ch.target, "✅ Eagle test message — your notification channel is connected.");
+    const r = await this.messaging.send(ch.type, ch.target, "✅ Workk test message — your notification channel is connected.");
     if (r.skipped) return { ok: true, dry: true, message: `${ch.type} is in dry mode (no provider credentials). The message was logged, not sent.` };
     if (!r.ok) throw new BadRequestException(r.error || "Send failed");
     return { ok: true, dry: false, message: "Test message sent." };

@@ -45,8 +45,8 @@ export class AuthService {
       data: { userId: user.id, tokenHash: sha256(raw), expiresAt: new Date(Date.now() + 3600_000) },
     });
     const link = `${DASHBOARD_URL}/reset?token=${raw}`;
-    const html = `<p>Hi ${user.name},</p><p>Reset your EagleSee password with the link below (valid for 1 hour):</p><p><a href="${link}">${link}</a></p><p>If you didn't request this, you can ignore this email.</p>`;
-    const res = await this.mail.send([user.email], "Reset your EagleSee password", html);
+    const html = `<p>Hi ${user.name},</p><p>Reset your Workk password with the link below (valid for 1 hour):</p><p><a href="${link}">${link}</a></p><p>If you didn't request this, you can ignore this email.</p>`;
+    const res = await this.mail.send([user.email], "Reset your Workk password", html);
     return res.skipped ? { ok: true, devLink: link } : { ok: true };
   }
 

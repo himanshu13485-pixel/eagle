@@ -41,7 +41,7 @@ export class ContactService {
       <p style="white-space:pre-wrap">${esc(dto.message)}</p>
     `;
 
-    const subject = `[Eagle] ${dto.reason || "Enquiry"} — ${dto.name}${dto.company ? ` (${dto.company})` : ""}`;
+    const subject = `[Workk] ${dto.reason || "Enquiry"} — ${dto.name}${dto.company ? ` (${dto.company})` : ""}`;
     const result = await this.mail.send(to, subject, html);
 
     // In dry mode (no SMTP configured) the enquiry would otherwise vanish, so
