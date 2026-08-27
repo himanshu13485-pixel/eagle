@@ -1,5 +1,6 @@
 import { NavLink } from "react-router-dom";
 import { BRAND } from "@eagle/shared";
+import { Mark } from "./Mark";
 
 const ICON: Record<string, string> = {
   dashboard: "M3 3h8v8H3zM13 3h8v5h-8zM13 10h8v11h-8zM3 13h8v8H3z",
@@ -54,11 +55,7 @@ export function Sidebar() {
   return (
     <aside className="flex h-screen w-64 shrink-0 flex-col bg-ink px-4 py-6 text-white">
       <div className="mb-8 flex items-center gap-2 px-2">
-        <span className="grid h-9 w-9 place-items-center rounded-full bg-black ring-1 ring-white/10">
-          <svg viewBox="0 0 24 24" className="h-5 w-5 text-amber-400" fill="currentColor">
-            <path d="M12 2 L14 13 L12 22 L10 13 Z" />
-          </svg>
-        </span>
+        <Mark className="h-9 w-9" />
         <span className="text-lg font-extrabold">
           {BRAND.name}
         </span>

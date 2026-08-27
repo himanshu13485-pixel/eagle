@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Mark } from "../components/Mark";
 import type { ReactNode } from "react";
 import { TrackingMode, type EmployeeDto, type TeamSnapshotReport } from "@eagle/shared";
 import { PageHeader } from "../components/Layout";
@@ -134,7 +135,7 @@ function ReportsTab() {
         <div className="overflow-hidden rounded-xl border border-gray-100 shadow-sm">
           {/* dark header — logo + wordmark right-aligned, like the emailed report */}
           <div className="flex items-center justify-end gap-2.5 bg-ink px-6 py-5 text-white">
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-black text-base">🦅</span>
+            <Mark className="h-9 w-9" />
             <span className="flex flex-col leading-tight">
               <span className="text-lg font-bold">Workk</span>
               <span className="text-[10px] tracking-wide text-gray-400">Productivity Tracking Software</span>
@@ -182,7 +183,7 @@ function SnapshotModal({ onClose }: { onClose: () => void }) {
               <span className="text-lg font-bold">Workk</span>
               <span className="text-[10px] tracking-wide text-gray-400">Productivity Tracking Software</span>
             </span>
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-black text-base">🦅</span>
+            <Mark className="h-9 w-9" />
           </div>
         </div>
 

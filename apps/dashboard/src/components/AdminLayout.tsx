@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Mark } from "./Mark";
 import { NavLink, useLocation } from "react-router-dom";
 import { getAdmin, adminLogout, adminApi } from "../lib/adminApi";
 import { NotificationBell } from "./NotificationBell";
@@ -27,7 +28,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
     <div className="flex h-screen overflow-hidden bg-gray-50">
       <aside className="flex w-64 shrink-0 flex-col bg-ink text-gray-300">
         <div className="flex shrink-0 items-center gap-2.5 px-6 py-5">
-          <span className="grid h-9 w-9 place-items-center rounded-full bg-black text-lg">🦅</span>
+          <Mark className="h-9 w-9" />
           <div className="leading-tight">
             <div className="text-lg font-bold text-white">Workk</div>
             <div className="text-[10px] uppercase tracking-widest text-amber-400">Admin Console</div>

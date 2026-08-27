@@ -30,7 +30,7 @@ export function Signup() {
   return (
     <div className="grid min-h-screen md:grid-cols-2">
       <div className="hidden flex-col justify-center bg-gray-50 p-14 md:flex">
-        <div className="text-2xl font-black text-gray-900">Eagle<span className="text-brand">See</span></div>
+        <div className="text-2xl font-black text-gray-900">Workk</div>
         <h1 className="mt-6 text-4xl font-black leading-tight text-gray-900">Start your 14-day free trial</h1>
         <p className="mt-4 max-w-md text-gray-500">No credit card required. Set up your workspace in two minutes and invite your team.</p>
         <ul className="mt-6 space-y-2 text-sm text-gray-600">

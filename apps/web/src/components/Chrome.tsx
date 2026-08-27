@@ -4,12 +4,21 @@ import { BRAND } from "@eagle/shared";
 import { CONTACT, LOGIN_URL, NAV_LINKS, SIGNUP_URL } from "../lib/site";
 import { Container } from "./ui";
 
-export function Mark({ className = "h-8 w-8" }: { className?: string }) {
+/** Workk mark: a geometric W monogram in gold on a rounded ink tile. */
+export function Mark({ className = "h-9 w-9" }: { className?: string }) {
   return (
-    <span className={`grid ${className} place-items-center rounded-full bg-ink`}>
-      <svg viewBox="0 0 24 24" className="h-[55%] w-[55%] text-gold" fill="currentColor" aria-hidden>
-        <path d="M12 2 L14 13 L12 22 L10 13 Z" />
-        <circle cx="13.5" cy="14.5" r="1.4" fill="#15161A" />
+    <span className={`grid ${className} shrink-0 place-items-center rounded-[30%] bg-ink`}>
+      <svg
+        viewBox="0 0 24 24"
+        className="h-[56%] w-[56%] text-gold"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <path d="M4 6.5 L7.5 17.5 L12 9.5 L16.5 17.5 L20 6.5" />
       </svg>
     </span>
   );
