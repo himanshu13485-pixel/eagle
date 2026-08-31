@@ -51,14 +51,22 @@ grep -q '^EAGLE_DATA=' "$ENV_FILE" || echo "EAGLE_DATA=$EAGLE_DATA" >> "$ENV_FIL
 say "Data directory: $EAGLE_DATA ($(df -h "$EAGLE_DATA" | awk 'NR==2{print $4}') free)"
 
 # ── 3. Port check ──────────────────────────────────────────────────────────
+# Guards against colliding with the OTHER projects on this shared box. On a
+# re-deploy our own containers hold these ports, which is not a collision —
+# compose rebinds them itself — so the check only applies when nothing of ours
+# is up. Without this, every update after the first failed here.
 # shellcheck disable=SC1090
 set -a; . "./$ENV_FILE"; set +a
-for p in "${API_HOST_PORT}" "${DASHBOARD_HOST_PORT}" "${WEB_HOST_PORT}"; do
-  if ss -ltn 2>/dev/null | grep -q ":${p} "; then
-    die "Port ${p} is already in use on this server. Change it in $ENV_FILE (and in the nginx site) and re-run."
-  fi
-done
-say "Ports ${API_HOST_PORT}/${DASHBOARD_HOST_PORT}/${WEB_HOST_PORT} are free."
+if [ -n "$(docker compose --env-file "$ENV_FILE" -f "$COMPOSE" ps -q 2>/dev/null)" ]; then
+  say "Stack is already running — skipping the port check (compose reuses its own ports)."
+else
+  for p in "${API_HOST_PORT}" "${DASHBOARD_HOST_PORT}" "${WEB_HOST_PORT}"; do
+    if ss -ltn 2>/dev/null | grep -q ":${p} "; then
+      die "Port ${p} is already in use on this server. Change it in $ENV_FILE (and in the nginx site) and re-run."
+    fi
+  done
+  say "Ports ${API_HOST_PORT}/${DASHBOARD_HOST_PORT}/${WEB_HOST_PORT} are free."
+fi
 
 # ── 4. Build + start ───────────────────────────────────────────────────────
 say "Building images (first run pulls Node/Postgres/nginx — takes a few minutes)…"
