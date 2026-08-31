@@ -25,8 +25,11 @@ export class RetentionService implements OnModuleInit {
   /** Screenshots stored before quotas existed have no recorded size; fill them
    *  in on boot so the storage meter and eviction have real numbers to work with. */
   onModuleInit() {
+    // Runs to completion in the background — quota enforcement is deliberately
+    // inert for an org whose oldest screenshots have no recorded size, so this
+    // is what switches the storage cap on for an existing deployment.
     this.quota
-      .backfill()
+      .backfillAll()
       .then((n) => n && this.log.log(`Backfilled sizes for ${n} pre-existing screenshots`))
       .catch((e) => this.log.warn(`size backfill failed: ${e.message}`));
   }
@@ -34,7 +37,7 @@ export class RetentionService implements OnModuleInit {
   /** Runs daily at 03:00 server time. */
   @Cron(CronExpression.EVERY_DAY_AT_3AM)
   async handleCron() {
-    const filled = await this.quota.backfill().catch(() => 0);
+    const filled = await this.quota.backfillAll().catch(() => 0);
     if (filled) this.log.log(`Backfilled sizes for ${filled} screenshots`);
     const total = await this.pruneAll();
     this.log.log(

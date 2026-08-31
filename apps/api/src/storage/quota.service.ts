@@ -178,22 +178,49 @@ export class QuotaService {
 
   /**
    * Fill in Screenshot.bytes for rows written before quotas existed, by asking
-   * storage how big each image actually is. Bounded per call; rows whose file is
-   * missing are marked -1 so they aren't re-checked forever.
+   * storage how big each image actually is. Rows whose file is missing are
+   * marked -1 so they aren't re-checked forever.
+   *
+   * One chunk per call. Quota enforcement is inert for an org whose oldest rows
+   * have no recorded size, so `backfillAll` runs this to completion on boot.
    */
   async backfill(limit = 2000): Promise<number> {
     const rows = await this.prisma.screenshot.findMany({
       where: { bytes: 0 },
       take: limit,
-      select: { id: true, orgId: true, s3Key: true },
+      select: { id: true, s3Key: true },
     });
-    let filled = 0;
-    for (const r of rows) {
-      const size = await this.storage.sizeOf(r.s3Key);
-      await this.prisma.screenshot.update({ where: { id: r.id }, data: { bytes: size ?? -1 } });
-      if (size) filled++;
+    if (!rows.length) return 0;
+
+    const sized = await Promise.all(
+      rows.map(async (r) => ({ id: r.id, size: await this.storage.sizeOf(r.s3Key) })),
+    );
+    // One transaction per chunk: 2000 separate round-trips to Postgres is the
+    // slow part here, not measuring the files.
+    await this.prisma.$transaction(
+      sized.map((r) =>
+        this.prisma.screenshot.update({ where: { id: r.id }, data: { bytes: r.size ?? -1 } }),
+      ),
+    );
+    this.cache.clear();
+    return sized.filter((r) => r.size).length;
+  }
+
+  /**
+   * Backfill every unmeasured screenshot, a chunk at a time. Returns the number
+   * measured. Stops early if a chunk measures nothing new, so a store full of
+   * missing files can't loop forever.
+   */
+  async backfillAll(): Promise<number> {
+    let total = 0;
+    for (;;) {
+      const before = await this.prisma.screenshot.count({ where: { bytes: 0 } });
+      if (!before) break;
+      const filled = await this.backfill();
+      total += filled;
+      const after = await this.prisma.screenshot.count({ where: { bytes: 0 } });
+      if (after >= before) break; // nothing was marked — avoid spinning
     }
-    if (filled) this.cache.clear();
-    return filled;
+    return total;
   }
 }
