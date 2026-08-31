@@ -66,6 +66,18 @@ export class QuotaService {
     return bytes;
   }
 
+  /** Stored bytes for many orgs in one query — for the platform admin's
+   *  cross-client views, where a per-org lookup would be an N+1. */
+  async usedBytesByOrg(orgIds: string[]): Promise<Map<string, number>> {
+    if (!orgIds.length) return new Map();
+    const rows = await this.prisma.screenshot.groupBy({
+      by: ["orgId"],
+      where: { orgId: { in: orgIds } },
+      _sum: { bytes: true },
+    });
+    return new Map(rows.map((r) => [r.orgId, Math.max(0, r._sum.bytes ?? 0)] as [string, number]));
+  }
+
   /** Adjust the cached total without re-summing (called on every add/delete). */
   private adjust(orgId: string, delta: number) {
     const hit = this.cache.get(orgId);

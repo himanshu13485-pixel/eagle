@@ -7,7 +7,7 @@ export const BRAND = {
   headline: { line1: "How Work Actually Happens", line2: "See Across Your Team" },
   description:
     "Workk gives owners and managers real-time work visibility through screenshots, live screen view, work replay, app usage, idle time, and productivity reports — so they can manage with facts, not assumptions.",
-  supportPhone: "+91 9016310001",
+  supportPhone: "+91 81302 46989",
   colors: {
     // Marketing (dark charcoal + gold)
     marketingBg: "#26272B",

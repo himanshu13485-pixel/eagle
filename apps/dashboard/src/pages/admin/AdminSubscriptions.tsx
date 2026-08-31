@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { PLANS, PlanTier, type PlanDefinition } from "@eagle/shared";
 import { adminApi, adminErr } from "../../lib/adminApi";
+import { fmtBytes } from "../../lib/format";
 import { AdminHeader } from "../../components/AdminLayout";
 
 interface SubClient {
   id: string; name: string; status: string; ownerEmail: string | null;
   tier: string; cycle: string; seats: number; usedSeats: number;
   perSeatYear: number; annualRevenue: number; validUntil: string | null;
+  storageUsed: number; storageLimit: number; retentionDays: number;
 }
 interface Totals {
   clients: number; seatsSold: number; seatsUsed: number; arr: number; mrr: number;
+  storageUsed: number; storageLimit: number;
   byTier: Record<string, number>;
 }
 interface Resp { clients: SubClient[]; totals: Totals; plans: Record<string, PlanDefinition> }
@@ -42,11 +45,16 @@ export function AdminSubscriptions() {
       <AdminHeader title="Subscriptions" subtitle="Plans, seats and revenue across every client — synced with the client billing catalog." />
 
       {/* revenue summary */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Stat label="Annual recurring revenue" value={t ? money0(t.arr) : "—"} sub={t ? `${money0(t.mrr)} MRR` : ""} tone="indigo" />
         <Stat label="Clients" value={t ? String(t.clients) : "—"} sub={t ? `${t.byTier.BASIC}·${t.byTier.PROFESSIONAL}·${t.byTier.BUSINESS} by tier` : ""} />
         <Stat label="Seats sold" value={t ? String(t.seatsSold) : "—"} sub={t ? `${t.seatsUsed} in use` : ""} />
         <Stat label="Seat utilisation" value={t && t.seatsSold ? Math.round((t.seatsUsed / t.seatsSold) * 100) + "%" : "—"} sub="active / sold" tone="green" />
+        <Stat
+          label="Storage in use"
+          value={t ? fmtBytes(t.storageUsed) : "—"}
+          sub={t ? `of ${fmtBytes(t.storageLimit)} sold across all plans` : ""}
+        />
       </div>
 
       {/* plan catalog (single source of truth = shared PLANS) */}
@@ -63,6 +71,9 @@ export function AdminSubscriptions() {
               <p className="mt-1 text-sm text-gray-500">{p.blurb}</p>
               <div className="mt-3"><span className="text-3xl font-black text-gray-900">{money(p.annual)}</span><span className="text-sm text-gray-400"> /seat/yr</span></div>
               <div className="mt-1 text-xs text-gray-400">or {money(p.monthly)}/seat/mo</div>
+              <div className="mt-3 rounded-lg bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-600">
+                {p.limits.storageGb} GB storage · {p.limits.screenshotRetentionDays}-day screenshots · {p.limits.activityRetentionDays}-day logs
+              </div>
               <ul className="mt-4 space-y-1.5 text-sm text-gray-600">
                 {p.features.slice(0, 5).map((f) => <li key={f} className="flex gap-2"><span className="text-green-500">✓</span>{f}</li>)}
                 {p.features.length > 5 && <li className="text-xs text-gray-400">+{p.features.length - 5} more</li>}
@@ -83,7 +94,8 @@ export function AdminSubscriptions() {
           <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
             <tr>
               <th className="px-5 py-3">Client</th><th className="px-5 py-3">Plan</th><th className="px-5 py-3">Billing</th>
-              <th className="px-5 py-3">Seats</th><th className="px-5 py-3">Revenue/yr</th><th className="px-5 py-3">Renews</th>
+              <th className="px-5 py-3">Seats</th><th className="px-5 py-3">Storage</th>
+              <th className="px-5 py-3">Revenue/yr</th><th className="px-5 py-3">Renews</th>
               <th className="px-5 py-3">Status</th><th className="px-5 py-3 text-center">Manage</th>
             </tr>
           </thead>
@@ -94,12 +106,13 @@ export function AdminSubscriptions() {
                 <td className="px-5 py-3"><span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${TIER_STYLE[c.tier] ?? "bg-gray-100 text-gray-500"}`}>{c.tier}</span></td>
                 <td className="px-5 py-3 text-gray-600">{c.cycle === "MONTHLY" ? "Monthly" : "Annual"}</td>
                 <td className="px-5 py-3"><SeatBar used={c.usedSeats} total={c.seats} /></td>
+                <td className="px-5 py-3"><StorageBar used={c.storageUsed} total={c.storageLimit} days={c.retentionDays} /></td>
                 <td className="px-5 py-3 font-semibold text-gray-800">{money0(c.annualRevenue)}</td>
                 <td className="px-5 py-3 text-gray-500">{c.validUntil ? new Date(c.validUntil).toLocaleDateString() : "—"}</td>
                 <td className="px-5 py-3"><span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${c.status === "ACTIVE" ? "bg-green-100 text-green-700" : "bg-rose-100 text-rose-600"}`}>{c.status}</span></td>
                 <td className="px-5 py-3 text-center"><button onClick={() => setEdit(c)} className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50">Change plan</button></td>
               </tr>
-            )) : <tr><td colSpan={8} className="px-5 py-16 text-center text-gray-400">{data ? "No clients match." : "Loading…"}</td></tr>}
+            )) : <tr><td colSpan={9} className="px-5 py-16 text-center text-gray-400">{data ? "No clients match." : "Loading…"}</td></tr>}
           </tbody>
         </table>
       </div>
@@ -132,6 +145,24 @@ function SeatBar({ used, total }: { used: number; total: number }) {
   );
 }
 
+/** Storage used against the plan's cap. Past the cap the nightly sweep (and each
+ *  upload) deletes the client's oldest screenshots, so a full bar is a support signal. */
+function StorageBar({ used, total, days }: { used: number; total: number; days: number }) {
+  const pct = total ? Math.min(100, Math.round((used / total) * 100)) : 0;
+  return (
+    <div className="w-32">
+      <div className="flex justify-between text-xs">
+        <span className="font-semibold text-gray-700">{fmtBytes(used)}</span>
+        <span className="text-gray-400">{pct}%</span>
+      </div>
+      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-gray-100">
+        <div className={`h-full ${pct >= 90 ? "bg-rose-500" : pct > 75 ? "bg-amber-500" : "bg-brand"}`} style={{ width: `${pct}%` }} />
+      </div>
+      <div className="mt-0.5 text-[11px] text-gray-400">of {fmtBytes(total)} · {days}d</div>
+    </div>
+  );
+}
+
 function ChangePlanModal({ client, onClose, onSaved, onErr }: { client: SubClient; onClose: () => void; onSaved: () => void; onErr: (m: string) => void }) {
   const [tier, setTier] = useState<PlanTier>(client.tier as PlanTier);
   const [cycle, setCycle] = useState(client.cycle);
@@ -140,6 +171,10 @@ function ChangePlanModal({ client, onClose, onSaved, onErr }: { client: SubClien
 
   const perSeat = cycle === "MONTHLY" ? PLANS[tier].monthly * 12 : PLANS[tier].annual;
   const total = perSeat * seats;
+  // A tighter window or a smaller cap means the client loses data on the next sweep.
+  const now = PLANS[client.tier as PlanTier]?.limits;
+  const next = PLANS[tier].limits;
+  const shrinks = !!now && (next.screenshotRetentionDays < now.screenshotRetentionDays || next.storageGb < now.storageGb);
 
   async function save() {
     setBusy(true);
@@ -175,6 +210,19 @@ function ChangePlanModal({ client, onClose, onSaved, onErr }: { client: SubClien
         <div className="mt-4 flex items-center justify-between rounded-xl bg-gray-50 px-4 py-3">
           <span className="text-sm text-gray-500">{money(perSeat)}/seat/yr × {seats}</span>
           <span className="text-lg font-black text-gray-900">{money(total)}<span className="text-xs font-medium text-gray-400"> /yr</span></span>
+        </div>
+        <div className="mt-3 rounded-xl bg-gray-50 px-4 py-3 text-xs text-gray-600">
+          <b>{PLANS[tier].name}</b> data limits: {PLANS[tier].limits.storageGb} GB storage ·{" "}
+          {PLANS[tier].limits.screenshotRetentionDays}-day screenshots ·{" "}
+          {PLANS[tier].limits.activityRetentionDays}-day logs. This client is using{" "}
+          {fmtBytes(client.storageUsed)} today.
+          {shrinks && (
+            <p className="mt-1.5 font-semibold text-amber-700">
+              ⚠ This is a downgrade. Captures outside the new {PLANS[tier].limits.screenshotRetentionDays}-day
+              window, and anything over the {PLANS[tier].limits.storageGb} GB cap, are deleted oldest-first by
+              the nightly sweep. Have them export what they need first.
+            </p>
+          )}
         </div>
         <p className="mt-2 text-xs text-gray-400">Used seats: {client.usedSeats}. Setting fewer seats than in use blocks new activations but won't remove anyone.</p>
         <div className="mt-5 flex justify-end gap-2">

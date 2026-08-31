@@ -1,9 +1,10 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcryptjs";
-import { PlanTier, PLANS } from "@eagle/shared";
+import { PlanTier, PLANS, planLimits, storageLimitBytes } from "@eagle/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
+import { QuotaService } from "../storage/quota.service";
 import { InvoicesService } from "../invoices/invoices.service";
 import type { RequestAdmin } from "./current-admin.decorator";
 
@@ -13,6 +14,7 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly storage: StorageService,
+    private readonly quota: QuotaService,
     private readonly invoices: InvoicesService,
   ) {}
 
@@ -101,6 +103,8 @@ export class AdminService {
       },
     });
 
+    const storageByOrg = await this.quota.usedBytesByOrg(orgs.map((o) => o.id));
+
     const clients = await Promise.all(
       orgs.map(async (o) => {
         const tier = (o.subscription?.tier ?? PlanTier.BASIC) as PlanTier;
@@ -108,6 +112,8 @@ export class AdminService {
         const cycle = o.subscription?.cycle ?? "ANNUALLY";
         const usedSeats = await this.prisma.employee.count({ where: { orgId: o.id, active: true } });
         const perSeatYear = cycle === "MONTHLY" ? PLANS[tier].monthly * 12 : PLANS[tier].annual;
+        const storageUsed = storageByOrg.get(o.id) ?? 0;
+        const storageLimit = storageLimitBytes(tier);
         return {
           id: o.id,
           name: o.name,
@@ -120,6 +126,9 @@ export class AdminService {
           perSeatYear: Number(perSeatYear.toFixed(2)),
           annualRevenue: Number((perSeatYear * seats).toFixed(2)),
           validUntil: o.subscription?.validUntil?.toISOString() ?? null,
+          storageUsed,
+          storageLimit,
+          retentionDays: planLimits(tier).screenshotRetentionDays,
         };
       }),
     );
@@ -133,6 +142,8 @@ export class AdminService {
         clients: clients.length,
         seatsSold: sum((c) => c.seats),
         seatsUsed: sum((c) => c.usedSeats),
+        storageUsed: sum((c) => c.storageUsed),
+        storageLimit: sum((c) => c.storageLimit),
         arr,
         mrr: Number((arr / 12).toFixed(2)),
         byTier: {
@@ -226,7 +237,12 @@ export class AdminService {
     const scope = await this.scopedOrgIds(a);
     const orgs = await this.prisma.organization.findMany({
       where: scope ? { id: { in: scope } } : {},
-      select: { id: true, name: true, _count: { select: { employees: true } } },
+      select: {
+        id: true,
+        name: true,
+        subscription: { select: { tier: true } },
+        _count: { select: { employees: true } },
+      },
     });
     const orgIds = orgs.map((o) => o.id);
     const monthStart = new Date();
@@ -240,6 +256,7 @@ export class AdminService {
       this.prisma.activitySession.groupBy({ by: ["orgId", "isIdle"], where: { orgId: { in: orgIds }, startedAt: { gte: monthStart } }, _sum: { durationSec: true } }),
       this.prisma.dataRequest.groupBy({ by: ["status"], where: { orgId: { in: orgIds }, source: "USER" }, _count: true }),
     ]);
+    const storageByOrg = await this.quota.usedBytesByOrg(orgIds);
 
     const totalMap = new Map(totalByOrg.map((r) => [r.orgId, r._count] as [string, number]));
     const monthMap = new Map(monthByOrg.map((r) => [r.orgId, r._count] as [string, number]));
@@ -254,10 +271,15 @@ export class AdminService {
       .map((o) => {
         const usageH = (usageMap.get(o.id) ?? 0) / 3600;
         const idleH = (idleMap.get(o.id) ?? 0) / 3600;
+        const tier = o.subscription?.tier ?? PlanTier.PROFESSIONAL;
         return {
           id: o.id,
           name: o.name,
+          tier,
           employees: o._count.employees,
+          storageUsed: storageByOrg.get(o.id) ?? 0,
+          storageLimit: storageLimitBytes(tier),
+          retentionDays: planLimits(tier).screenshotRetentionDays,
           screenshots: totalMap.get(o.id) ?? 0,
           screenshotsThisMonth: monthMap.get(o.id) ?? 0,
           trackedHours: +(usageH + idleH).toFixed(1),
@@ -273,6 +295,8 @@ export class AdminService {
         clients: clients.length,
         screenshots: clients.reduce((s, c) => s + c.screenshots, 0),
         screenshotsThisMonth: clients.reduce((s, c) => s + c.screenshotsThisMonth, 0),
+        storageUsed: clients.reduce((s, c) => s + c.storageUsed, 0),
+        storageLimit: clients.reduce((s, c) => s + c.storageLimit, 0),
         trackedHours: +clients.reduce((s, c) => s + c.trackedHours, 0).toFixed(1),
         activeRequests: drCount("PENDING") + drCount("PROCESSING"),
         completedRequests: drCount("COMPLETED"),
