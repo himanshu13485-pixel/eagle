@@ -39,8 +39,11 @@ Put a reverse proxy (Caddy/Nginx/Traefik) in front for TLS and host routing.
   Business 20 GB). Going over deletes the oldest screenshots until the org fits — checked on
   every upload and again in the nightly sweep. Limits live in `PLANS` in `@eagle/shared`, so
   the pricing page and the deletion code can't drift. `GET /api/admin/retention/storage`
-  reports an org's current use. Rough sizing: a 1080p JPEG is ~250-400 KB, so 5 GB is roughly
-  15k captures — about 10 seats at a 10-minute interval for the full 15-day Basic window.
+  reports an org's current use. Rough sizing: measured on workk.work, a capture averages
+  ~100 KB, so 5 GB is roughly 50k of them. At a 10-minute interval over an 8-hour day that
+  is ~48 captures per seat per day, i.e. Basic's 5 GB comfortably covers a few dozen seats
+  for its full 15-day window. Busy screens compress worse than idle ones, so treat this as
+  a floor and watch the meter rather than the arithmetic.
 - **Capture resolution**: screenshots are downscaled to 1080p tall by default
   (Settings → Screenshot Settings), so a 4K monitor doesn't cost ~4x the storage of a
   1080p one. Multi-monitor width is preserved; shorter screens are left alone.
