@@ -73,10 +73,18 @@ AutoSSL validates over HTTP and fails if DNS hasn't landed.
 
 ### 2. Clone and deploy
 
+The live checkout is **`/home/eagle-app`** — the same tree that holds the
+bind-mounted data in `/home/eagle-app/data`. To update an existing deploy:
+
 ```bash
-cd /home/eagle            # or wherever you keep project checkouts
-git clone https://github.com/himanshu13485-pixel/eagle.git
-cd eagle
+cd /home/eagle-app && git pull && sudo bash deploy/prod/deploy.sh
+```
+
+For a fresh box:
+
+```bash
+git clone https://github.com/himanshu13485-pixel/eagle.git /home/eagle-app
+cd /home/eagle-app
 sudo bash deploy/prod/deploy.sh
 ```
 
