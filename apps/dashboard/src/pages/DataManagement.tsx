@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { EmployeeDto } from "@eagle/shared";
 import { PageHeader } from "../components/Layout";
+import { StorageMeter, type StorageUsage } from "../components/StorageMeter";
 import { api } from "../lib/api";
 import { fmtDate } from "../lib/format";
 
-interface Overview { totalScreenshots: number; thisMonth: number; trackingHours: number; usageHours: number; idleHours: number }
+interface Overview { totalScreenshots: number; thisMonth: number; trackingHours: number; usageHours: number; idleHours: number; storage: StorageUsage }
 interface DataReq {
   id: string; source: string; action: string; dataType: string; targetLabel: string;
   requestedAt: string; rangeFrom: string | null; rangeTo: string | null; status: string;
@@ -14,7 +15,8 @@ interface Team { id: string; name: string }
 
 const ACTION_LABEL: Record<string, string> = {
   EXPORT: "Export", DELETE: "Delete",
-  RETENTION_SCREENSHOTS: "Retention cleanup (Screenshots)", RETENTION_LOGS: "Retention cleanup (Logs)", PT_ROLLUP: "PT rollup refresh",
+  RETENTION_SCREENSHOTS: "Retention cleanup (Screenshots)", RETENTION_LOGS: "Retention cleanup (Logs)",
+  RETENTION_QUOTA: "Storage cleanup (over plan quota)", PT_ROLLUP: "PT rollup refresh",
 };
 const STATUS_STYLE: Record<string, string> = {
   PENDING: "bg-amber-100 text-amber-700", PROCESSING: "bg-blue-100 text-blue-700",
@@ -76,6 +78,8 @@ export function DataManagement() {
         subtitle="Manage and track organization wide data exports and removal."
         action={<button onClick={() => setOpen(true)} className="rounded-full bg-brand px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-dark">+ Add Request</button>}
       />
+
+      {ov?.storage && <StorageMeter storage={ov.storage} className="mb-6" />}
 
       {/* screenshots overview */}
       <div className="mb-6 rounded-2xl bg-white p-5 shadow-sm">

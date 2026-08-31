@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { QuotaService } from "../storage/quota.service";
 
 const ACTIVE_REQUEST_LIMIT = 5;
 const MAX_DAYS_PER_REQUEST: Record<string, number> = { BASIC: 14, PROFESSIONAL: 14, BUSINESS: 31 };
@@ -18,7 +19,10 @@ interface DataReqQuery {
 
 @Injectable()
 export class WorkspaceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly quota: QuotaService,
+  ) {}
 
   // ---- Shifts ----
   async listShifts(orgId: string) {
@@ -155,6 +159,7 @@ export class WorkspaceService {
   }
 
   async dataOverview(orgId: string) {
+    const storage = await this.quota.usage(orgId);
     const monthStart = new Date();
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
@@ -169,6 +174,7 @@ export class WorkspaceService {
     return {
       totalScreenshots: total,
       thisMonth,
+      storage,
       trackingHours: +(usageH + idleH).toFixed(2), // this month
       usageHours: +usageH.toFixed(3),
       idleHours: +idleH.toFixed(3),

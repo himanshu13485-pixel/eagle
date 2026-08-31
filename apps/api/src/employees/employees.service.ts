@@ -5,10 +5,7 @@ import { join } from "path";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
-import { PresenceStatus, type EmployeeDto } from "@eagle/shared";
-
-// Teams allowed per product tier (mirrors billing/teams). BUSINESS = unlimited.
-const TEAM_LIMIT: Record<string, number> = { BASIC: 2, PROFESSIONAL: 10, BUSINESS: Number.POSITIVE_INFINITY };
+import { planLimits, PresenceStatus, type EmployeeDto } from "@eagle/shared";
 
 @Injectable()
 export class EmployeesService {
@@ -145,7 +142,7 @@ export class EmployeesService {
       this.prisma.team.count({ where: { orgId } }),
       this.prisma.subscription.findUnique({ where: { orgId }, select: { tier: true } }),
     ]);
-    const limit = TEAM_LIMIT[sub?.tier ?? "PROFESSIONAL"] ?? 10;
+    const limit = planLimits(sub?.tier).teams;
     if (used >= limit) {
       throw new BadRequestException(`Team limit reached (${used}/${limit}). Upgrade your product tier to add a new department/team, or pick an existing one.`);
     }

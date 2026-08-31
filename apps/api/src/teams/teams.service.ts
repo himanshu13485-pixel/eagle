@@ -1,11 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
+import { planLimits } from "@eagle/shared";
 import { PrismaService } from "../prisma/prisma.service";
-
-const TEAM_LIMIT: Record<string, number> = {
-  BASIC: 2,
-  PROFESSIONAL: 10,
-  BUSINESS: Number.POSITIVE_INFINITY,
-};
 
 @Injectable()
 export class TeamsService {
@@ -13,7 +8,7 @@ export class TeamsService {
 
   private async limit(orgId: string): Promise<number> {
     const sub = await this.prisma.subscription.findUnique({ where: { orgId } });
-    return TEAM_LIMIT[sub?.tier ?? "PROFESSIONAL"] ?? 10;
+    return planLimits(sub?.tier).teams;
   }
 
   async list(orgId: string) {

@@ -136,6 +136,7 @@ export class DevicesService {
       appSwitchScreenshots: s.appSwitchScreenshots,
       appSwitchDelayMin: s.appSwitchDelayMin,
       webcamPhotos: s.webcamPhotos,
+      screenshotMaxHeight: s.screenshotMaxHeight,
       idleAfterMin: s.idleAfterMin,
       trackingMode: s.trackingMode as TrackingMode,
       strictTimeTracking: s.strictTimeTracking,

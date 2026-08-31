@@ -214,6 +214,7 @@ model Screenshot {
   url        String?
   isIdle     Boolean  @default(false)
   s3Key      String
+  bytes      Int      @default(0) // stored image size; drives the per-plan storage quota
   createdAt  DateTime @default(now())
 
   @@index([orgId, capturedAt])
@@ -246,6 +247,9 @@ model TrackingSetting {
   appSwitchScreenshots  Boolean      @default(true)
   appSwitchDelayMin     Int          @default(1)
   webcamPhotos          Boolean      @default(false)
+  // Downscale captures to at most this many pixels tall (0 = native resolution).
+  // Caps what a 4K/5K monitor costs in storage; 1080 keeps a full-HD image.
+  screenshotMaxHeight   Int          @default(1080)
   idleAfterMin          Int          @default(5)
   trackingMode          String       @default("VISIBLE") // TrackingMode
   strictTimeTracking    Boolean      @default(true)

@@ -4,6 +4,7 @@ import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CurrentUser, RequestUser } from "../auth/current-user.decorator";
 import { PrismaService } from "../prisma/prisma.service";
 import { PlanTier, PLANS } from "@eagle/shared";
+import { QuotaService } from "../storage/quota.service";
 import { BillingService } from "./billing.service";
 
 class TierDto {
@@ -27,6 +28,7 @@ export class BillingController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly billing: BillingService,
+    private readonly quota: QuotaService,
   ) {}
 
   private async ensure(orgId: string) {
@@ -41,6 +43,7 @@ export class BillingController {
     const sub = await this.ensure(u.orgId);
     // Only active (non-deactivated) employees consume a seat.
     const activeUsers = await this.prisma.employee.count({ where: { orgId: u.orgId, active: true } });
+    const storage = await this.quota.usage(u.orgId);
     const plan = PLANS[sub.tier as PlanTier];
     return {
       tier: sub.tier,
@@ -50,6 +53,7 @@ export class BillingController {
       activeUsers,
       availableSeats: Math.max(0, sub.seats - activeUsers),
       pricePerSeat: sub.cycle === "ANNUALLY" ? plan.annual : plan.monthly,
+      storage,
       plans: PLANS,
       gatewayConfigured: !!process.env.CASHFREE_APP_ID,
     };

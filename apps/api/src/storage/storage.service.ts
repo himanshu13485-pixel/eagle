@@ -1,11 +1,12 @@
 import { Injectable } from "@nestjs/common";
-import { mkdir, writeFile, unlink } from "fs/promises";
+import { mkdir, writeFile, unlink, stat } from "fs/promises";
 import { dirname, join } from "path";
 import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
+  HeadObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
@@ -53,6 +54,20 @@ export class StorageService {
       });
     }
     return `${this.publicBase}/api/files/${key}`;
+  }
+
+  /** Stored size in bytes, or null if the object is gone. Used to backfill
+   *  Screenshot.bytes for images written before storage quotas existed. */
+  async sizeOf(key: string): Promise<number | null> {
+    try {
+      if (this.s3) {
+        const head = await this.s3.send(new HeadObjectCommand({ Bucket: this.bucket, Key: key }));
+        return head.ContentLength ?? null;
+      }
+      return (await stat(join(this.dir, key))).size;
+    } catch {
+      return null;
+    }
   }
 
   async deleteImage(key: string): Promise<void> {

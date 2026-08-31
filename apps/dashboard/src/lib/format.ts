@@ -64,3 +64,17 @@ export function downloadCsv(filename: string, csv: string) {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+/** Storage size, e.g. 812 MB / 4.3 GB. Used by the plan storage meter. */
+export function fmtBytes(bytes: number): string {
+  const b = Math.max(0, bytes);
+  if (b < 1024) return `${b} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let v = b / 1024;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
+}

@@ -177,10 +177,17 @@ class Agent {
     }
   }
 
+  /** Resolution cap for stored screenshots. Older servers don't send the field,
+   *  so fall back to full HD rather than uploading native 4K frames. */
+  private maxHeight(): number {
+    const h = (this.cfg as { screenshotMaxHeight?: number }).screenshotMaxHeight;
+    return typeof h === "number" && h >= 0 ? h : 1080;
+  }
+
   private async capture(trigger: "PERIODIC" | "APP_SWITCH" | "ON_DEMAND", app: string | null, url: string | null, isIdle: boolean) {
     let img: Buffer;
     try {
-      img = await captureJpeg(this.cfg.webcamPhotos);
+      img = await captureJpeg(this.cfg.webcamPhotos, this.maxHeight());
     } catch (e: any) {
       console.error("[capture]", e.message);
       return;
@@ -203,7 +210,7 @@ class Agent {
     console.log("[capture] on-demand request");
     let img: Buffer;
     try {
-      img = await captureJpeg(false);
+      img = await captureJpeg(false, this.maxHeight());
     } catch (e: any) {
       console.error("[capture]", e.message);
       return;

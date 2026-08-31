@@ -11,6 +11,7 @@ interface TrackingSettings {
   appSwitchScreenshots: boolean;
   appSwitchDelayMin: number;
   webcamPhotos: boolean;
+  screenshotMaxHeight: number;
   idleAfterMin: number;
   trackingMode: TrackingMode;
   strictTimeTracking: boolean;
@@ -265,6 +266,16 @@ function SnapTable({ head, rows, empty }: { head: string[]; rows: { name: string
 }
 
 /* ---------------- Screenshot Settings ---------------- */
+// Stored screenshots are downscaled to this height. Native looks best but a 4K
+// screen costs roughly four times a 1080p one against the plan's storage quota.
+const RESOLUTIONS = [
+  { value: 720, label: "720p (smallest)" },
+  { value: 1080, label: "1080p — Full HD (recommended)" },
+  { value: 1440, label: "1440p" },
+  { value: 2160, label: "2160p — 4K" },
+  { value: 0, label: "Native screen resolution" },
+];
+
 function useSettings() {
   const [s, setS] = useState<TrackingSettings | null>(null);
   const [saved, setSaved] = useState(false);
@@ -290,8 +301,23 @@ function ScreenshotTab() {
           <Field label="App switch capture delay"><Stepper value={s.appSwitchDelayMin} onChange={(v) => patch({ appSwitchDelayMin: v })} min={1} max={30} /></Field>
           <Field label="Mark user idle after"><Stepper value={s.idleAfterMin} onChange={(v) => patch({ idleAfterMin: v })} min={1} max={60} /></Field>
         </Card>
+        <Card title="Image Quality" desc="Capture resolution — the main lever on how fast you use your plan's storage.">
+          <Field label="Screenshot resolution">
+            <select
+              value={s.screenshotMaxHeight}
+              onChange={(e) => patch({ screenshotMaxHeight: Number(e.target.value) })}
+              className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
+            >
+              {RESOLUTIONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+            </select>
+          </Field>
+          <p className="text-xs text-gray-400">
+            Taller screens are scaled down to this height; anything already shorter is left alone,
+            and multi-monitor width is preserved. Agents pick the change up on their next heartbeat.
+          </p>
+        </Card>
       </div>
-      <SaveBar saved={saved} onSave={() => save({ periodicScreenshots: s.periodicScreenshots, appSwitchScreenshots: s.appSwitchScreenshots, webcamPhotos: s.webcamPhotos, screenshotIntervalMin: s.screenshotIntervalMin, appSwitchDelayMin: s.appSwitchDelayMin, idleAfterMin: s.idleAfterMin })} />
+      <SaveBar saved={saved} onSave={() => save({ periodicScreenshots: s.periodicScreenshots, appSwitchScreenshots: s.appSwitchScreenshots, webcamPhotos: s.webcamPhotos, screenshotIntervalMin: s.screenshotIntervalMin, appSwitchDelayMin: s.appSwitchDelayMin, idleAfterMin: s.idleAfterMin, screenshotMaxHeight: s.screenshotMaxHeight })} />
     </>
   );
 }

@@ -67,6 +67,10 @@ export interface AgentConfig {
   appSwitchScreenshots: boolean;
   appSwitchDelayMin: number; // e.g. 1
   webcamPhotos: boolean;
+  /** Downscale captures to at most this many pixels tall; 0 = native resolution.
+   *  A 4K screen stored at native size costs ~4x a 1080p one, so the default
+   *  caps it at full HD. Aspect ratio (and multi-monitor width) is preserved. */
+  screenshotMaxHeight: number;
   idleAfterMin: number; // e.g. 5
   trackingMode: TrackingMode;
   strictTimeTracking: boolean;
@@ -80,6 +84,7 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   appSwitchScreenshots: true,
   appSwitchDelayMin: 1,
   webcamPhotos: false,
+  screenshotMaxHeight: 1080,
   idleAfterMin: 5,
   trackingMode: TrackingMode.VISIBLE,
   strictTimeTracking: true,

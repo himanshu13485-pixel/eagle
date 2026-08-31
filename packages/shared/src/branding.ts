@@ -26,6 +26,20 @@ export interface PlanDefinition {
   annual: number; // USD per seat / year
   recommended?: boolean;
   features: string[];
+  limits: PlanLimits;
+}
+
+/**
+ * Hard data limits per tier — enforced by the API, not just advertised.
+ * Retention days are age-based; storageGb is a whole-org cap on stored
+ * screenshot bytes. Whichever bites first wins: past either one, the oldest
+ * screenshots are deleted automatically (see RetentionService / QuotaService).
+ */
+export interface PlanLimits {
+  screenshotRetentionDays: number;
+  activityRetentionDays: number;
+  storageGb: number; // total screenshot storage for the whole org
+  teams: number; // Infinity = unlimited
 }
 
 /** Pricing + feature matrix, mirroring the reference product's three tiers. */
@@ -41,11 +55,13 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
       "Live screencast, 45 min/day",
       "Periodic screenshots, 15 min interval",
       "15-day screenshot retention",
+      "5 GB screenshot storage",
       "90-day activity logs",
       "Up to 2 teams",
       "Visible monitoring mode only",
       "Webcam capture available as add-on",
     ],
+    limits: { screenshotRetentionDays: 15, activityRetentionDays: 90, storageGb: 5, teams: 2 },
   },
   [PlanTier.PROFESSIONAL]: {
     tier: PlanTier.PROFESSIONAL,
@@ -62,9 +78,11 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
       "Live screencast, 90 min/day",
       "10 min screenshot interval",
       "30-day screenshot retention",
+      "10 GB screenshot storage",
       "Hidden mode + app-switch screenshots",
       "Manager and team lead roles",
     ],
+    limits: { screenshotRetentionDays: 30, activityRetentionDays: 90, storageGb: 10, teams: 10 },
   },
   [PlanTier.BUSINESS]: {
     tier: PlanTier.BUSINESS,
@@ -77,13 +95,27 @@ export const PLANS: Record<PlanTier, PlanDefinition> = {
       "Live screencast, 180 min/day",
       "5 min screenshot interval",
       "60-day screenshot retention",
+      "20 GB screenshot storage",
       "180-day activity logs",
       "Executive reports",
       "Priority onboarding support",
       "Advanced productivity patterns",
     ],
+    limits: { screenshotRetentionDays: 60, activityRetentionDays: 180, storageGb: 20, teams: Number.POSITIVE_INFINITY },
   },
 };
+
+/** Limits for a tier string, falling back to Professional for unknown/legacy values. */
+export function planLimits(tier: string | null | undefined): PlanLimits {
+  return (PLANS[tier as PlanTier] ?? PLANS[PlanTier.PROFESSIONAL]).limits;
+}
+
+export const GB = 1024 * 1024 * 1024;
+
+/** Storage cap for a tier, in bytes. */
+export function storageLimitBytes(tier: string | null | undefined): number {
+  return planLimits(tier).storageGb * GB;
+}
 
 export const NAV_FEATURES = [
   "Computer Screen Monitoring",

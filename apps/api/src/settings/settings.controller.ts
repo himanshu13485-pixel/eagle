@@ -12,6 +12,8 @@ class UpdateSettingsDto {
   @IsOptional() @IsBoolean() appSwitchScreenshots?: boolean;
   @IsOptional() @IsInt() @Min(1) @Max(30) appSwitchDelayMin?: number;
   @IsOptional() @IsBoolean() webcamPhotos?: boolean;
+  // 0 = native resolution; the rest are the standard heights offered in Settings.
+  @IsOptional() @IsIn([0, 720, 1080, 1440, 2160]) screenshotMaxHeight?: number;
   @IsOptional() @IsInt() @Min(1) @Max(60) idleAfterMin?: number;
   @IsOptional() @IsEnum(TrackingMode) trackingMode?: TrackingMode;
   @IsOptional() @IsBoolean() strictTimeTracking?: boolean;

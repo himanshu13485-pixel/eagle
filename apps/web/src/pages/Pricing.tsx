@@ -19,6 +19,10 @@ const FAQ = [
     "Retention follows your new plan from that day. Existing captures older than the new window are removed by the nightly retention job, so downgrade after you have exported anything you need.",
   ],
   [
+    "What happens when I reach my storage limit?",
+    "Each plan includes a screenshot storage allowance — 5 GB on Basic, 10 GB on Professional, 20 GB on Business. When you reach it the oldest screenshots are deleted automatically, so capturing never stops and you always keep the most recent history. Screenshots are stored at 1080p by default, so a 4K monitor doesn't burn through the allowance; you can change that in Settings.",
+  ],
+  [
     "Do you need a card to start?",
     "No. You only enter payment details when you choose a paid plan at the end of the trial.",
   ],
@@ -41,7 +45,7 @@ export default function Pricing() {
       <PageHead
         eyebrow="Pricing"
         title={<>Per seat, per month. <Accent>No surprises.</Accent></>}
-        lede="Three plans separated by how often you capture, how long you keep it, and how many teams you run. Every plan includes the full reporting suite."
+        lede="Three plans separated by how often you capture, how long and how much you keep, and how many teams you run. Every plan includes the full reporting suite."
       />
 
       <Section>

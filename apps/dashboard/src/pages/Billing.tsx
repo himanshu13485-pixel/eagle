@@ -4,10 +4,12 @@ import { PageHeader } from "../components/Layout";
 import { StatCard } from "../components/ReportControls";
 import { api } from "../lib/api";
 import { InvoiceModal, money, type Invoice } from "../components/InvoiceModal";
+import { StorageMeter, type StorageUsage } from "../components/StorageMeter";
 
 interface BillingInfo {
   tier: PlanTier; cycle: string; seats: number; validUntil: string | null;
   activeUsers: number; availableSeats: number; pricePerSeat: number;
+  storage: StorageUsage;
   plans: Record<PlanTier, PlanDefinition>; gatewayConfigured: boolean;
 }
 interface CheckoutResp { orderId: string; paymentSessionId: string; amount: number; currency: string; mode: string; env: string }
@@ -71,6 +73,8 @@ export function Billing() {
         </div>
       </div>
 
+      {b.storage && <StorageMeter storage={b.storage} className="mb-6" />}
+
       {msg && <div className="mb-4 rounded-xl bg-green-50 px-4 py-3 text-sm text-green-700">{msg}</div>}
       {!b.gatewayConfigured && <div className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700">⚠ Cashfree isn't configured — checkout runs in <b>sandbox/dry mode</b> (you can simulate payment). Set <code>CASHFREE_APP_ID</code> / <code>CASHFREE_SECRET_KEY</code> to go live.</div>}
 
@@ -87,6 +91,9 @@ export function Billing() {
               </div>
               <p className="mt-1 text-sm text-gray-500">{p.blurb}</p>
               <p className="mt-3 text-2xl font-black text-gray-900">${p.annual}<span className="text-sm font-normal text-gray-400"> /seat/yr</span></p>
+              <p className="mt-2 rounded-lg bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-600">
+                {p.limits.storageGb} GB storage · {p.limits.screenshotRetentionDays}-day screenshots · {p.limits.activityRetentionDays}-day logs
+              </p>
               <ul className="mt-4 space-y-1.5 text-sm text-gray-600">
                 {p.features.map((f) => <li key={f} className="flex gap-2"><span className="text-green-500">✓</span> {f}</li>)}
               </ul>

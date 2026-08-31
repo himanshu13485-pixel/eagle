@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
+import { QuotaService } from "../storage/quota.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { RT_EVENTS, ScreenshotTrigger, UsageType } from "@eagle/shared";
 
@@ -23,6 +24,7 @@ export class IngestService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly storage: StorageService,
+    private readonly quota: QuotaService,
     private readonly realtime: RealtimeGateway,
   ) {}
 
@@ -57,8 +59,15 @@ export class IngestService {
         url: meta.url ?? null,
         isIdle,
         s3Key: key,
+        bytes: file.buffer.length,
       },
     });
+
+    // Storage quota: count the new image, then drop the oldest screenshots if
+    // the org has gone over its plan's cap. Runs after the upload is safely
+    // stored, so a capture is never lost to make room for itself.
+    this.quota.noteAdded(device.orgId, file.buffer.length);
+    this.quota.enforce(device.orgId).catch(() => undefined);
 
     const realApp = ((meta.app ?? "").trim() && meta.app!.trim().toLowerCase() !== "idle") ? meta.app!.trim() : undefined;
     await this.prisma.employee.update({

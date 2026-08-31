@@ -8,14 +8,17 @@ import { join } from "path";
 const pexec = promisify(execFile);
 
 const AGENT_DIR = join(process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"), "EagleAgent");
-const CAPTURE_PS1 = join(AGENT_DIR, "capture2.ps1");
+const CAPTURE_PS1 = join(AGENT_DIR, "capture3.ps1");
 const FFMPEG = join(AGENT_DIR, "ffmpeg.exe");
 
 // ---- Screen capture via a trusted on-disk PS1 (see Defender note) ----
-// Supports: -Monitor (-1 = whole virtual desktop / all monitors; 0..N = a single monitor)
-// and -MaxWidth (downscale to at most N px wide — used for live frames so 4K / multi-monitor
-// setups stream at a fraction of the bytes). Full screenshots use -Monitor -1 -MaxWidth 0.
-const CAPTURE_SCRIPT = `param([string]$Out,[int]$Quality=70,[int]$Monitor=-1,[int]$MaxWidth=0)
+// Supports: -Monitor (-1 = whole virtual desktop / all monitors; 0..N = a single monitor),
+// -MaxWidth (used for live frames so 4K / multi-monitor setups stream at a fraction of the
+// bytes) and -MaxHeight (the stored-screenshot cap — 1080 by default, so a 4K monitor
+// doesn't cost 4x the storage of a full-HD one). 0 means "no cap" for either.
+// Both are applied together: the image is scaled by whichever is more restrictive, so
+// aspect ratio holds and a 3840x1080 dual-monitor desktop is left alone at MaxHeight 1080.
+const CAPTURE_SCRIPT = `param([string]$Out,[int]$Quality=70,[int]$Monitor=-1,[int]$MaxWidth=0,[int]$MaxHeight=0)
 Add-Type -AssemblyName System.Windows.Forms,System.Drawing
 if ($Monitor -ge 0) {
   $screens=[System.Windows.Forms.Screen]::AllScreens
@@ -26,8 +29,13 @@ $g=[System.Drawing.Graphics]::FromImage($src)
 $g.CopyFromScreen($b.X,$b.Y,0,0,(New-Object System.Drawing.Size($b.Width,$b.Height)))
 $g.Dispose()
 $img=$src
-if ($MaxWidth -gt 0 -and $b.Width -gt $MaxWidth) {
-  $nw=$MaxWidth; $nh=[int]($b.Height*$MaxWidth/$b.Width)
+$scale=1.0
+if ($MaxWidth -gt 0 -and $b.Width -gt $MaxWidth) { $scale=[Math]::Min($scale,$MaxWidth/$b.Width) }
+if ($MaxHeight -gt 0 -and $b.Height -gt $MaxHeight) { $scale=[Math]::Min($scale,$MaxHeight/$b.Height) }
+if ($scale -lt 1.0) {
+  $nw=[int]($b.Width*$scale); $nh=[int]($b.Height*$scale)
+  if ($nw -lt 1) { $nw=1 }
+  if ($nh -lt 1) { $nh=1 }
   $dst=New-Object System.Drawing.Bitmap $nw,$nh
   $g2=[System.Drawing.Graphics]::FromImage($dst)
   $g2.InterpolationMode=[System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
@@ -48,12 +56,13 @@ async function ensureScript(): Promise<void> {
   if (!existsSync(CAPTURE_PS1)) await writeFile(CAPTURE_PS1, CAPTURE_SCRIPT, "utf8");
 }
 
-interface CaptureOpts { monitor?: number; maxWidth?: number; quality?: number }
+interface CaptureOpts { monitor?: number; maxWidth?: number; maxHeight?: number; quality?: number }
 
 async function captureScreen(opts: CaptureOpts = {}): Promise<Buffer> {
   const monitor = opts.monitor ?? -1;
   const quality = opts.quality ?? 70;
   const maxWidth = opts.maxWidth ?? 0;
+  const maxHeight = opts.maxHeight ?? 0;
   const out = join(tmpdir(), `eagle_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`);
   if (process.platform === "darwin") {
     // macOS: needs Screen Recording permission. -D <n> selects a display (1-based).
@@ -61,6 +70,7 @@ async function captureScreen(opts: CaptureOpts = {}): Promise<Buffer> {
     if (monitor >= 0) args.push("-D", String(monitor + 1));
     args.push(out);
     await pexec("screencapture", args, { timeout: 15000 });
+    if (maxHeight > 0) await downscaleMac(out, maxHeight);
     const buf = await readFile(out);
     unlink(out).catch(() => {});
     return buf;
@@ -69,12 +79,25 @@ async function captureScreen(opts: CaptureOpts = {}): Promise<Buffer> {
   await pexec(
     "powershell.exe",
     ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", CAPTURE_PS1,
-      "-Out", out, "-Quality", String(quality), "-Monitor", String(monitor), "-MaxWidth", String(maxWidth)],
+      "-Out", out, "-Quality", String(quality), "-Monitor", String(monitor),
+      "-MaxWidth", String(maxWidth), "-MaxHeight", String(maxHeight)],
     { windowsHide: true, timeout: 15000, maxBuffer: 4 * 1024 * 1024 },
   );
   const buf = await readFile(out);
   unlink(out).catch(() => {});
   return buf;
+}
+
+/** macOS has no scaling option on `screencapture`, so resize in place with sips.
+ *  Only shrinks: sips --resampleHeight would enlarge a shorter screen. */
+async function downscaleMac(path: string, maxHeight: number): Promise<void> {
+  try {
+    const { stdout } = await pexec("sips", ["-g", "pixelHeight", path], { timeout: 8000 });
+    const h = parseInt((stdout.match(/pixelHeight:\s*(\d+)/) ?? [])[1] ?? "0", 10);
+    if (h > maxHeight) await pexec("sips", ["--resampleHeight", String(maxHeight), path], { timeout: 15000 });
+  } catch {
+    /* leave the capture at native size rather than losing it */
+  }
 }
 
 /** Downscaled single-monitor capture for live streaming (small + cheap for 4K / multi-monitor). */
@@ -184,11 +207,11 @@ let webcamGaveUp = false;
 const WEBCAM_MAX_FAILURES = 3;
 
 /** Screenshot, with the webcam snapshot overlaid in the corner when enabled. */
-export async function captureJpeg(withWebcam = false): Promise<Buffer> {
+export async function captureJpeg(withWebcam = false, maxHeight = 1080): Promise<Buffer> {
   if (process.platform !== "win32" && process.platform !== "darwin") {
     throw new Error("Screen capture is implemented for Windows and macOS only");
   }
-  const screen = await captureScreen();
+  const screen = await captureScreen({ maxHeight });
   // Webcam overlay is Windows-only for now (macOS uses a different capture path).
   if (!withWebcam || process.platform !== "win32" || webcamGaveUp) return screen;
   if (!(await ensureFfmpeg())) return screen;
