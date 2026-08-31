@@ -39,7 +39,10 @@ export interface PlanLimits {
   screenshotRetentionDays: number;
   activityRetentionDays: number;
   storageGb: number; // total screenshot storage for the whole org
-  teams: number; // Infinity = unlimited
+  /** Infinity = unlimited. Note this crosses the wire as `null` — JSON has no
+   *  Infinity — which matches what GET /teams already sends for "no limit".
+   *  Treat a null/non-finite value as unlimited on the client. */
+  teams: number;
 }
 
 /** Pricing + feature matrix, mirroring the reference product's three tiers. */
