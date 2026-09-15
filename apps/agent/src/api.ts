@@ -14,6 +14,8 @@ export interface AgentConfig {
   strictTimeTracking: boolean;
   heartbeatSec: number;
   paused?: boolean;
+  /** Hosts to block in browsers. Absent on older servers → treat as none. */
+  blockedSites?: string[];
 }
 
 export type Presence = "ACTIVE" | "IDLE" | "OFFLINE";

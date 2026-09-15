@@ -6,6 +6,7 @@ import { loadConfig, saveConfig, type LocalConfig } from "./config";
 import { connectLive } from "./live";
 import { buffer } from "./buffer";
 import { Control, type ControlCmd } from "./control";
+import { SiteBlocker } from "./blocker";
 
 const AGENT_VERSION = "0.1.0";
 const TICK_MS = 5000;
@@ -27,6 +28,7 @@ const DEFAULT_CONFIG: AgentConfig = {
   trackingMode: "VISIBLE",
   strictTimeTracking: true,
   heartbeatSec: 20,
+  blockedSites: [],
 };
 
 class Agent {
@@ -42,6 +44,7 @@ class Agent {
   private trackedTodaySec = 0;
   private trackedDay = "";
   private control: Control;
+  private blocker = new SiteBlocker();
 
   constructor(
     private readonly api: EagleApi,
@@ -89,6 +92,8 @@ class Agent {
           const res = await this.api.heartbeat("OFFLINE", null, null);
           if (res.config) this.cfg = res.config;
           this.syncControl();
+          // Keep blocks in force even while dormant (they're not tied to a shift).
+          this.blocker.sync(this.cfg.blockedSites ?? []).catch((e) => console.error("[block]", e.message));
         } catch {
           /* offline — will retry */
         }
@@ -105,6 +110,9 @@ class Agent {
     const fg = await getForeground();
     const status: Presence = idle ? "IDLE" : "ACTIVE";
     if (!idle) this.trackedTodaySec += TICK_MS / 1000;
+
+    // Close-the-tab fallback for blocked sites (no-op when browser policies apply).
+    this.blocker.enforceForeground(fg.app, fg.url).catch((e) => console.error("[block]", e.message));
 
     // Foreground / idle-state change → roll the activity session over.
     const appChanged = fg.app !== this.lastApp;
@@ -123,6 +131,7 @@ class Agent {
         const res = await this.api.heartbeat(status, fg.app, fg.url);
         if (res.config) this.cfg = res.config;
         this.syncControl(); // start/stop the visible-mode tray if the mode changed
+        this.blocker.sync(this.cfg.blockedSites ?? []).catch((e) => console.error("[block]", e.message));
         // Heartbeat succeeded → we're online → replay anything buffered offline.
         const sent = await buffer.flush(this.api).catch(() => 0);
         if (sent) console.log(`[sync] flushed ${sent} buffered item(s)`);

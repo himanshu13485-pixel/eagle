@@ -26,6 +26,9 @@ class BulkDto {
 class RecipientsDto {
   @IsArray() @IsString({ each: true }) recipients!: string[];
 }
+class BlockedSitesDto {
+  @IsArray() @IsString({ each: true }) sites!: string[];
+}
 class ChannelDto {
   @IsIn(["TELEGRAM", "WHATSAPP"]) type!: string;
   @IsString() target!: string;
@@ -68,6 +71,18 @@ export class SettingsController {
       update: { reportRecipients: clean.join(",") },
     });
     return { recipients: clean };
+  }
+
+  /** Website blocking: the hosts every agent in the org blocks in browsers. */
+  @Put("blocked-sites")
+  async setBlockedSites(@CurrentUser() user: RequestUser, @Body() dto: BlockedSitesDto) {
+    const clean = normalizeHosts(dto.sites ?? []);
+    await this.prisma.trackingSetting.upsert({
+      where: { orgId: user.orgId },
+      create: { orgId: user.orgId, blockedSites: clean.join(",") },
+      update: { blockedSites: clean.join(",") },
+    });
+    return { sites: clean };
   }
 
   /** Bulk Update: apply a per-employee tracking override (agents pick it up on heartbeat). */
@@ -121,4 +136,22 @@ export class SettingsController {
     if (!r.ok) throw new BadRequestException(r.error || "Send failed");
     return { ok: true, dry: false, message: "Test message sent." };
   }
+}
+
+/** Reduce whatever the admin typed ("https://www.Facebook.com/foo", "x.com")
+ *  to a bare, de-duplicated host list the agent can enforce. Drops anything
+ *  without a dot (a bare word can't be a site and would over-block). */
+function normalizeHosts(input: string[]): string[] {
+  const out = new Set<string>();
+  for (const raw of input) {
+    let v = (raw ?? "").trim().toLowerCase();
+    if (!v) continue;
+    v = v.replace(/^[a-z]+:\/\//, ""); // strip scheme
+    v = v.split("/")[0].split("?")[0].split("#")[0]; // drop path/query/fragment
+    v = v.split("@").pop()!; // drop any user-info
+    v = v.split(":")[0]; // drop port
+    v = v.replace(/^www\./, "");
+    if (v.includes(".") && /^[a-z0-9.-]+$/.test(v)) out.add(v);
+  }
+  return Array.from(out).slice(0, 200);
 }

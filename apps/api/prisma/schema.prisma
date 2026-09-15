@@ -254,6 +254,8 @@ model TrackingSetting {
   trackingMode          String       @default("VISIBLE") // TrackingMode
   strictTimeTracking    Boolean      @default(true)
   reportRecipients      String       @default("") // CSV of emails that receive scheduled reports (max 5)
+  // Hosts the agent blocks in browsers, CSV (SQLite has no scalar lists), e.g. "facebook.com,x.com".
+  blockedSites          String       @default("")
   updatedAt             DateTime     @updatedAt
 }
 

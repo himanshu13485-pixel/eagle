@@ -118,7 +118,11 @@ export class DevicesService {
     let cfg = base;
     if (emp?.settingsJson) {
       try {
-        cfg = { ...base, ...(JSON.parse(emp.settingsJson) as Partial<AgentConfig>) };
+        const override = JSON.parse(emp.settingsJson) as Partial<AgentConfig>;
+        cfg = { ...base, ...override };
+        // A per-employee override that doesn't mention blockedSites must not wipe
+        // the org list (spreading an absent key would set it to undefined).
+        cfg.blockedSites = override.blockedSites ?? base.blockedSites;
       } catch {
         /* ignore malformed override */
       }
@@ -142,6 +146,15 @@ export class DevicesService {
       strictTimeTracking: s.strictTimeTracking,
       heartbeatSec: DEFAULT_AGENT_CONFIG.heartbeatSec,
       paused: false,
+      blockedSites: parseCsv(s.blockedSites),
     };
   }
+}
+
+/** Split a stored CSV of hosts into a clean list (trimmed, no blanks). */
+function parseCsv(csv: string | null | undefined): string[] {
+  return (csv ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 }

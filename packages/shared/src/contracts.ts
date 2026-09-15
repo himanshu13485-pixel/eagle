@@ -76,6 +76,10 @@ export interface AgentConfig {
   strictTimeTracking: boolean;
   heartbeatSec: number; // presence ping cadence
   paused: boolean; // true when the employee is deactivated → agent goes dormant
+  /** Website hosts the agent should block in browsers (e.g. "facebook.com").
+   *  Enforced via browser policy + hosts file where the agent runs elevated,
+   *  with a best-effort close-the-tab fallback otherwise. Empty = block nothing. */
+  blockedSites: string[];
 }
 
 export const DEFAULT_AGENT_CONFIG: AgentConfig = {
@@ -90,6 +94,7 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   strictTimeTracking: true,
   heartbeatSec: 20,
   paused: false,
+  blockedSites: [],
 };
 
 export interface HeartbeatRequest {

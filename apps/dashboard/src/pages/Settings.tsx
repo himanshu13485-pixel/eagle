@@ -16,13 +16,14 @@ interface TrackingSettings {
   trackingMode: TrackingMode;
   strictTimeTracking: boolean;
   reportRecipients: string;
+  blockedSites: string; // CSV of hosts
 }
 
-const TABS = ["Reports & Notifications", "Screenshot Settings", "Tracking Controls", "Shift", "Bulk Update", "Integrations"] as const;
+const TABS = ["Reports & Notifications", "Screenshot Settings", "Tracking Controls", "Website Blocking", "Shift", "Bulk Update", "Integrations"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_ICON: Record<Tab, string> = {
   "Reports & Notifications": "✉️", "Screenshot Settings": "🖥️", "Tracking Controls": "🕒",
-  "Shift": "📅", "Bulk Update": "👥", "Integrations": "🔗",
+  "Website Blocking": "🚫", "Shift": "📅", "Bulk Update": "👥", "Integrations": "🔗",
 };
 
 export function Settings() {
@@ -40,6 +41,7 @@ export function Settings() {
       {tab === "Reports & Notifications" && <ReportsTab />}
       {tab === "Screenshot Settings" && <ScreenshotTab />}
       {tab === "Tracking Controls" && <TrackingControlsTab />}
+      {tab === "Website Blocking" && <WebsiteBlockingTab />}
       {tab === "Shift" && <ShiftTab />}
       {tab === "Bulk Update" && <BulkTab />}
       {tab === "Integrations" && <IntegrationsTab />}
@@ -342,6 +344,92 @@ function TrackingControlsTab() {
       </div>
       <SaveBar saved={saved} onSave={() => save({ strictTimeTracking: s.strictTimeTracking, trackingMode: s.trackingMode })} />
     </>
+  );
+}
+
+/* ---------------- Website Blocking ---------------- */
+// Reduce whatever the manager types to a bare host, mirroring the server's
+// normalizer so the chip they see is the host that actually gets blocked.
+function hostOf(raw: string): string | null {
+  let v = raw.trim().toLowerCase();
+  if (!v) return null;
+  v = v.replace(/^[a-z]+:\/\//, "").split("/")[0].split("?")[0].split("#")[0];
+  v = v.split("@").pop()!.split(":")[0].replace(/^www\./, "");
+  return v.includes(".") && /^[a-z0-9.-]+$/.test(v) ? v : null;
+}
+
+function WebsiteBlockingTab() {
+  const [sites, setSites] = useState<string[]>([]);
+  const [input, setInput] = useState("");
+  const [err, setErr] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api<TrackingSettings>("/settings")
+      .then((s) => setSites(s.blockedSites ? s.blockedSites.split(",").filter(Boolean) : []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  function add() {
+    const host = hostOf(input);
+    if (!host) { setErr("Enter a valid website, e.g. facebook.com"); return; }
+    if (sites.includes(host)) { setErr(`${host} is already blocked.`); return; }
+    setSites([...sites, host]); setInput(""); setErr(""); setSaved(false);
+  }
+  async function save() {
+    const res = await api<{ sites: string[] }>("/settings/blocked-sites", { method: "PUT", body: JSON.stringify({ sites }) });
+    setSites(res.sites); setSaved(true);
+  }
+
+  if (loading) return <div className="text-gray-400">Loading settings…</div>;
+  return (
+    <div className="max-w-2xl space-y-5">
+      <div className="rounded-2xl bg-white p-6 shadow-sm">
+        <h3 className="flex items-center gap-2 text-lg font-bold text-gray-900">Blocked Websites</h3>
+        <p className="mt-1 text-sm text-gray-500">
+          Agents block these sites in the employee's browsers (Chrome, Edge, Brave, Firefox).
+          Blocking a domain also blocks its subdomains — <span className="font-mono text-xs">facebook.com</span> covers <span className="font-mono text-xs">m.facebook.com</span>.
+        </p>
+
+        <label className="mt-5 block text-sm font-semibold text-gray-600">Add a website to block</label>
+        <div className="mt-1 flex gap-2">
+          <input
+            value={input}
+            onChange={(e) => { setInput(e.target.value); setErr(""); }}
+            onKeyDown={(e) => e.key === "Enter" && add()}
+            placeholder="facebook.com"
+            className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
+          />
+          <button onClick={add} className="shrink-0 rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-dark">Add</button>
+        </div>
+        {err ? <p className="mt-1 text-xs text-red-500">{err}</p> : <p className="mt-1 text-xs italic text-gray-400">Type a domain and press Enter. Paste a full URL and we'll keep just the site.</p>}
+
+        <p className="mt-5 text-sm font-semibold text-gray-700">Blocked ({sites.length})</p>
+        {sites.length ? (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {sites.map((s) => (
+              <span key={s} className="flex items-center gap-2 rounded-full bg-red-50 px-3 py-1.5 text-sm text-red-700">
+                <span className="font-mono">{s}</span>
+                <button onClick={() => { setSites(sites.filter((x) => x !== s)); setSaved(false); }} className="text-red-400 hover:text-red-600" title={`Unblock ${s}`}>✕</button>
+              </span>
+            ))}
+          </div>
+        ) : <p className="mt-2 text-sm text-gray-400">No sites blocked — browsing is unrestricted.</p>}
+      </div>
+
+      <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm">
+        <p className="font-semibold text-amber-700">ⓘ How enforcement works</p>
+        <p className="text-amber-600">
+          Full blocking (a proper "blocked" page, tamper-resistant) needs the agent to run with admin rights on the PC —
+          the case on most single-user laptops. Where it doesn't, the agent falls back to closing the tab when a blocked
+          site is opened. Changes reach each agent on its next heartbeat (~20s).
+        </p>
+      </div>
+
+      <SaveBar saved={saved} onSave={save} />
+    </div>
   );
 }
 
