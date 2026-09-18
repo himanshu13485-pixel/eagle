@@ -47,6 +47,18 @@ Put a reverse proxy (Caddy/Nginx/Traefik) in front for TLS and host routing.
 - **Capture resolution**: screenshots are downscaled to 1080p tall by default
   (Settings → Screenshot Settings), so a 4K monitor doesn't cost ~4x the storage of a
   1080p one. Multi-monitor width is preserved; shorter screens are left alone.
+- **Data requests**: Export/Delete raised on Data Management are run by a background
+  worker (kicked on submit, plus a one-minute backstop). Exports are zipped, streamed
+  through an authenticated endpoint, and swept after 7 days; deletions remove image
+  files as well as rows. Capped at 5000 screenshots per export.
+- **Productivity categories**: apps/sites are classified PRODUCTIVE / UNPRODUCTIVE /
+  NEUTRAL from `DEFAULT_CATEGORY_RULES` in `@eagle/shared`, overridable per org in
+  Settings → Productivity. Editing the shipped defaults improves every org that has
+  not overridden that pattern — org rules always win.
+- **Shifts**: assign employees to a shift in Settings → Shift to get shift time,
+  overtime, late starts and rostered-day absences. Windows are evaluated in the
+  shift's own timezone (`Intl`, no tz dependency), including overnight rosters.
+  Unrostered employees are tracked as before and report a dash.
 - **Offline sync**: the agent buffers screenshots + activity under `~/.eagle-agent/buffer`
   when the API is unreachable and replays them on the next successful heartbeat.
 - **Migrations**: the API uses `prisma db push` on boot (fine for a young schema). Switch to
