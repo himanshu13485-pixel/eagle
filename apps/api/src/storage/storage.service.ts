@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { mkdir, writeFile, unlink, stat } from "fs/promises";
+import { mkdir, writeFile, unlink, stat, rename, copyFile } from "fs/promises";
+import { createReadStream, type ReadStream } from "fs";
 import { dirname, join } from "path";
 import {
   S3Client,
@@ -54,6 +55,56 @@ export class StorageService {
       });
     }
     return `${this.publicBase}/api/files/${key}`;
+  }
+
+  /**
+   * Move a file that was built on local disk (a generated export archive) into
+   * storage. Local driver renames it into place — no second copy of a multi-GB
+   * archive — falling back to copy when the temp dir is on another filesystem.
+   */
+  async putFile(key: string, localPath: string, contentType = "application/zip"): Promise<number> {
+    const size = (await stat(localPath)).size;
+    if (this.s3) {
+      await this.s3.send(
+        new PutObjectCommand({
+          Bucket: this.bucket,
+          Key: key,
+          Body: createReadStream(localPath),
+          ContentLength: size,
+          ContentType: contentType,
+        }),
+      );
+      await unlink(localPath).catch(() => {});
+      return size;
+    }
+    const full = join(this.dir, key);
+    await mkdir(dirname(full), { recursive: true });
+    try {
+      await rename(localPath, full);
+    } catch {
+      await copyFile(localPath, full);
+      await unlink(localPath).catch(() => {});
+    }
+    return size;
+  }
+
+  /** Read a stored object back as a stream, for authenticated downloads. */
+  async getStream(key: string): Promise<ReadStream | NodeJS.ReadableStream | null> {
+    if (this.s3) {
+      try {
+        const res = await this.s3.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+        return (res.Body as NodeJS.ReadableStream) ?? null;
+      } catch {
+        return null;
+      }
+    }
+    const full = join(this.dir, key);
+    try {
+      await stat(full);
+    } catch {
+      return null;
+    }
+    return createReadStream(full);
   }
 
   /** Stored size in bytes, or null if the object is gone. Used to backfill

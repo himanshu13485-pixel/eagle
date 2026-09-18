@@ -3,12 +3,15 @@ import type { EmployeeDto } from "@eagle/shared";
 import { PageHeader } from "../components/Layout";
 import { StorageMeter, type StorageUsage } from "../components/StorageMeter";
 import { api } from "../lib/api";
-import { fmtDate } from "../lib/format";
+import { fmtBytes, fmtDate } from "../lib/format";
+import { authedDownload } from "../lib/api";
 
 interface Overview { totalScreenshots: number; thisMonth: number; trackingHours: number; usageHours: number; idleHours: number; storage: StorageUsage }
 interface DataReq {
   id: string; source: string; action: string; dataType: string; targetLabel: string;
   requestedAt: string; rangeFrom: string | null; rangeTo: string | null; status: string;
+  itemCount: number; error: string | null; completedAt: string | null;
+  downloadable: boolean; artifactSize: number; expiresAt: string | null;
 }
 interface ListResp { items: DataReq[]; total: number; page: number; pageSize: number; activeCount: number; activeLimit: number }
 interface Team { id: string; name: string }
@@ -59,6 +62,15 @@ export function DataManagement() {
 
   const load = useCallback(() => { api<ListResp>(`/data-requests?${query}`).then(setData).catch(() => setData(null)); }, [query]);
   useEffect(() => { load(); }, [load]);
+
+  // Requests are executed by a background worker, so refresh while any of them
+  // is still in flight — otherwise a finished export needs a manual reload.
+  const busy = data?.items.some((r) => r.source === "USER" && ["PENDING", "PROCESSING"].includes(r.status)) ?? false;
+  useEffect(() => {
+    if (!busy) return;
+    const t = setInterval(load, 4000);
+    return () => clearInterval(t);
+  }, [busy, load]);
   useEffect(() => { setPage(1); }, [employeeId, status, action, automated, pageSize]);
 
   async function cancelReq(id: string) {
@@ -142,6 +154,7 @@ export function DataManagement() {
               <tr>
                 <th className="px-5 py-3">#</th><th className="px-5 py-3">Request</th><th className="px-5 py-3">Requested</th>
                 <th className="px-5 py-3">Action</th><th className="px-5 py-3">Range</th><th className="px-5 py-3">Status</th>
+                <th className="px-5 py-3">Result</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -164,9 +177,10 @@ export function DataManagement() {
                       {r.source === "USER" && ["PENDING", "PROCESSING"].includes(r.status) && <button onClick={() => cancelReq(r.id)} className="text-xs text-red-500 hover:underline">Cancel</button>}
                     </div>
                   </td>
+                  <td className="px-5 py-3"><Result req={r} onError={setToast} /></td>
                 </tr>
               )) : (
-                <tr><td colSpan={6} className="px-5 py-16 text-center text-gray-400">List is empty.</td></tr>
+                <tr><td colSpan={7} className="px-5 py-16 text-center text-gray-400">List is empty.</td></tr>
               )}
             </tbody>
           </table>
@@ -287,4 +301,50 @@ function CreateModal({ employees, teams, onClose, onCreated, onError }: { employ
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <div><p className="mb-1.5 text-sm font-semibold text-gray-600">{label}</p>{children}</div>;
+}
+
+/** What came of a request: a download for finished exports, a count for
+ *  deletions, the reason for failures. */
+function Result({ req, onError }: { req: DataReq; onError: (m: string) => void }) {
+  const [busy, setBusy] = useState(false);
+
+  if (req.source === "SYSTEM") return <span className="text-xs text-gray-400">—</span>;
+  if (req.status === "FAILED") {
+    return <span className="text-xs text-red-500" title={req.error ?? ""}>{req.error ? req.error.slice(0, 40) : "Failed"}</span>;
+  }
+  if (["PENDING", "PROCESSING"].includes(req.status)) {
+    return <span className="text-xs text-gray-400">{req.status === "PROCESSING" ? "Working…" : "Queued"}</span>;
+  }
+  if (req.status !== "COMPLETED") return <span className="text-xs text-gray-400">—</span>;
+
+  if (req.action === "DELETE") {
+    return <span className="text-xs text-gray-600">{req.itemCount.toLocaleString()} deleted</span>;
+  }
+
+  if (!req.downloadable) {
+    return <span className="text-xs text-gray-400">{req.itemCount === 0 ? "Nothing in range" : "Download expired"}</span>;
+  }
+
+  async function download() {
+    setBusy(true);
+    try {
+      await authedDownload(`/data-requests/${req.id}/download`);
+    } catch {
+      onError("Couldn't download that archive.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <button onClick={download} disabled={busy}
+        className="rounded-lg bg-brand px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-dark disabled:opacity-50">
+        {busy ? "Preparing…" : "⬇ Download"}
+      </button>
+      <span className="text-[11px] text-gray-400">
+        {req.itemCount.toLocaleString()} item{req.itemCount === 1 ? "" : "s"} · {fmtBytes(req.artifactSize)}
+      </span>
+    </div>
+  );
 }

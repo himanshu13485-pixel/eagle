@@ -1,8 +1,11 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Query, Res, UseGuards } from "@nestjs/common";
+import type { Response } from "express";
 import { IsArray, IsIn, IsOptional, IsString } from "class-validator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CurrentUser, RequestUser } from "../auth/current-user.decorator";
 import { WorkspaceService } from "./workspace.service";
+import { DataRequestsWorker } from "./data-requests.worker";
+import { StorageService } from "../storage/storage.service";
 
 class ShiftDto {
   @IsString() name!: string;
@@ -31,7 +34,11 @@ class SupportDto {
 @UseGuards(JwtAuthGuard)
 @Controller()
 export class WorkspaceController {
-  constructor(private readonly ws: WorkspaceService) {}
+  constructor(
+    private readonly ws: WorkspaceService,
+    private readonly worker: DataRequestsWorker,
+    private readonly storage: StorageService,
+  ) {}
 
   @Get("shifts")
   shifts(@CurrentUser() u: RequestUser) {
@@ -68,8 +75,27 @@ export class WorkspaceController {
     });
   }
   @Post("data-requests")
-  createDataReq(@CurrentUser() u: RequestUser, @Body() dto: DataReqDto) {
-    return this.ws.createDataRequest(u.orgId, dto);
+  async createDataReq(@CurrentUser() u: RequestUser, @Body() dto: DataReqDto) {
+    const req = await this.ws.createDataRequest(u.orgId, dto);
+    // Start immediately rather than waiting for the next minute's tick — a small
+    // export finishes while the user is still looking at the page.
+    this.worker.drain().catch(() => undefined);
+    return req;
+  }
+
+  /** Download a completed export. Streamed through the API so the archive is
+   *  never a public URL — it holds screenshots of someone's screen. */
+  @Get("data-requests/:id/download")
+  async downloadDataReq(@CurrentUser() u: RequestUser, @Param("id") id: string, @Res() res: Response) {
+    const req = await this.ws.getDataRequest(u.orgId, id);
+    if (!req.artifactKey) throw new NotFoundException("This request has no download.");
+    if (req.expiresAt && req.expiresAt < new Date()) throw new NotFoundException("This download has expired.");
+    const stream = await this.storage.getStream(req.artifactKey);
+    if (!stream) throw new NotFoundException("The archive is no longer available.");
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${req.artifactName ?? "export.zip"}"`);
+    if (req.artifactSize) res.setHeader("Content-Length", String(req.artifactSize));
+    (stream as NodeJS.ReadableStream).pipe(res);
   }
   @Patch("data-requests/:id/cancel")
   cancelDataReq(@CurrentUser() u: RequestUser, @Param("id") id: string) {

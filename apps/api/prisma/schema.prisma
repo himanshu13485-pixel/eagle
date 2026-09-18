@@ -344,4 +344,16 @@ model DataRequest {
   rangeTo          DateTime?
   status           String       @default("PENDING") // PENDING | PROCESSING | COMPLETED | FAILED | CANCELLED
   createdAt        DateTime     @default(now())
+
+  // Set once the worker has run the request (see DataRequestsWorker).
+  startedAt    DateTime?
+  completedAt  DateTime?
+  error        String? // why it FAILED, shown to the requester
+  itemCount    Int       @default(0) // screenshots or log rows exported/deleted
+  artifactKey  String? // EXPORT only: storage key of the generated archive
+  artifactName String? // the filename offered on download
+  artifactSize Int       @default(0)
+  expiresAt    DateTime? // EXPORT only: when the archive is swept up
+
+  @@index([status, createdAt])
 }

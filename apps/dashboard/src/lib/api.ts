@@ -96,4 +96,32 @@ export async function api<T>(path: string, options: RequestInit = {}, _retried =
   return res.json() as Promise<T>;
 }
 
+/**
+ * Download a file from an authenticated endpoint. A plain <a href> can't carry
+ * the bearer token, and the export archives are deliberately not public URLs —
+ * they contain screenshots of someone's screen — so fetch it and hand the blob
+ * to the browser instead.
+ */
+export async function authedDownload(path: string): Promise<void> {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/api${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+
+  // Prefer the filename the server chose, so exports are named consistently.
+  const disposition = res.headers.get("content-disposition") ?? "";
+  const named = /filename="?([^"]+)"?/.exec(disposition)?.[1];
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = named || "download.zip";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 export { API_URL };

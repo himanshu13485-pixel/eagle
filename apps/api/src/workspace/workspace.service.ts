@@ -111,6 +111,14 @@ export class WorkspaceService {
       rangeFrom: r.rangeFrom?.toISOString() ?? null,
       rangeTo: r.rangeTo?.toISOString() ?? null,
       status: r.status,
+      // Execution results (see DataRequestsWorker) — drive the Download button
+      // and the failure reason in the table.
+      itemCount: r.itemCount,
+      error: r.error,
+      completedAt: r.completedAt?.toISOString() ?? null,
+      downloadable: !!r.artifactKey && (!r.expiresAt || r.expiresAt > new Date()),
+      artifactSize: r.artifactSize,
+      expiresAt: r.expiresAt?.toISOString() ?? null,
     }));
 
     return { items, total, page, pageSize, activeCount, activeLimit: ACTIVE_REQUEST_LIMIT };
@@ -148,6 +156,12 @@ export class WorkspaceService {
         status: "PENDING",
       },
     });
+  }
+
+  async getDataRequest(orgId: string, id: string) {
+    const r = await this.prisma.dataRequest.findFirst({ where: { id, orgId } });
+    if (!r) throw new NotFoundException("Request not found");
+    return r;
   }
 
   async cancelDataRequest(orgId: string, id: string) {
