@@ -53,3 +53,10 @@ export enum TrackingMode {
   VISIBLE = "VISIBLE",
   RESTRICTED = "RESTRICTED",
 }
+
+/** How an app or website counts toward productivity. */
+export enum ActivityCategory {
+  PRODUCTIVE = "PRODUCTIVE",
+  UNPRODUCTIVE = "UNPRODUCTIVE",
+  NEUTRAL = "NEUTRAL",
+}

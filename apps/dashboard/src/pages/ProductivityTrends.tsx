@@ -56,12 +56,18 @@ export function ProductivityTrends() {
           </div>
 
           <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-gray-400">Key Performance Indicators</h3>
-          <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <Kpi label="Productivity Score" value={`${data.kpis.productivityPct}%`} accent="text-brand" sub="active vs logged time" />
+          <div className="mb-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <Kpi label="Focus Score" value={`${data.kpis.focusPct}%`} accent="text-brand" sub="productive share of active time" />
+            <Kpi label="Activity Score" value={`${data.kpis.productivityPct}%`} accent="text-gray-800" sub="active vs logged time" />
             <Kpi label="Active Time" value={fmtHM(data.kpis.activeSec)} accent="text-green-600" delta={{ sec: data.kpis.activeDeltaSec, goodUp: true }} />
             <Kpi label="Idle Time" value={fmtHM(data.kpis.idleSec)} accent="text-amber-600" delta={{ sec: data.kpis.idleDeltaSec, goodUp: false }} />
-            <Kpi label="Avg Score / Employee" value={`${data.kpis.avgScore}%`} accent="text-gray-800" sub="across active employees" />
           </div>
+
+          <FocusSplit
+            productiveSec={data.kpis.productiveSec}
+            unproductiveSec={data.kpis.unproductiveSec}
+            neutralSec={data.kpis.neutralSec}
+          />
 
           <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-gray-400">Top Contributors</h3>
           <div className="grid gap-6 lg:grid-cols-2">
@@ -140,7 +146,7 @@ export function ProductivityTrends() {
             <div className="p-5"><h3 className="font-bold text-gray-900">Employees Needing Review</h3></div>
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
-                <tr><th className="px-5 py-3">Employee</th><th className="px-5 py-3">Idle %</th><th className="px-5 py-3">Productivity %</th><th className="px-5 py-3">Trend</th><th className="px-5 py-3">Signal</th></tr>
+                <tr><th className="px-5 py-3">Employee</th><th className="px-5 py-3">Idle %</th><th className="px-5 py-3">Activity %</th><th className="px-5 py-3">Focus %</th><th className="px-5 py-3">Trend</th><th className="px-5 py-3">Signal</th></tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {attention.length ? attention.map((e) => (
@@ -148,10 +154,11 @@ export function ProductivityTrends() {
                     <td className="px-5 py-3 font-medium text-gray-900">{e.employeeName}</td>
                     <td className="px-5 py-3 text-amber-600">{e.idlePct}%</td>
                     <td className="px-5 py-3">{e.productivityPct}%</td>
+                    <td className="px-5 py-3 font-semibold text-gray-800">{e.focusPct}%</td>
                     <td className="px-5 py-3"><Trend sec={e.trendDeltaSec} /></td>
                     <td className="px-5 py-3"><span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-600">High Idle</span></td>
                   </tr>
-                )) : <tr><td colSpan={5} className="px-5 py-10 text-center text-gray-400">No employees crossed the attention thresholds. 🎉</td></tr>}
+                )) : <tr><td colSpan={6} className="px-5 py-10 text-center text-gray-400">No employees crossed the attention thresholds. 🎉</td></tr>}
               </tbody>
             </table>
           </div>
@@ -273,4 +280,44 @@ function Contributor({ name, pct, tone, suffix, onClick }: { name: string; pct: 
 }
 function Empty({ children }: { children: ReactNode }) {
   return <p className="py-6 text-center text-sm text-gray-400">{children}</p>;
+}
+
+/** Where the active time actually went. Idle time is excluded on purpose — this
+ *  answers "was the working time spent on work", not "were they at the desk". */
+function FocusSplit({ productiveSec, unproductiveSec, neutralSec }: { productiveSec: number; unproductiveSec: number; neutralSec: number }) {
+  const total = productiveSec + unproductiveSec + neutralSec;
+  const parts = [
+    { label: "Productive", sec: productiveSec, bar: "bg-green-500", text: "text-green-700" },
+    { label: "Neutral", sec: neutralSec, bar: "bg-gray-300", text: "text-gray-500" },
+    { label: "Unproductive", sec: unproductiveSec, bar: "bg-rose-500", text: "text-rose-600" },
+  ];
+  return (
+    <div className="mb-6 rounded-2xl bg-white p-5 shadow-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="font-bold text-gray-900">Where active time went</h3>
+        <a href="/settings" className="text-xs font-semibold text-brand hover:underline">Edit categories →</a>
+      </div>
+      {total === 0 ? (
+        <p className="mt-3 text-sm text-gray-400">No active time in this period.</p>
+      ) : (
+        <>
+          <div className="mt-3 flex h-3 overflow-hidden rounded-full bg-gray-100">
+            {parts.map((p) => p.sec > 0 && (
+              <div key={p.label} className={p.bar} style={{ width: `${(p.sec / total) * 100}%` }} title={`${p.label}: ${fmtHM(p.sec)}`} />
+            ))}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
+            {parts.map((p) => (
+              <span key={p.label} className="flex items-center gap-2">
+                <span className={`h-2.5 w-2.5 rounded-full ${p.bar}`} />
+                <span className="text-gray-600">{p.label}</span>
+                <span className={`font-semibold ${p.text}`}>{fmtHM(p.sec)}</span>
+                <span className="text-gray-400">({Math.round((p.sec / total) * 100)}%)</span>
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
 }

@@ -30,6 +30,7 @@ model Organization {
   supportReqs  SupportRequest[]
   dataRequests DataRequest[]
   invoices     Invoice[]
+  categories   ActivityCategory[]
 }
 
 // A billing invoice for a plan/seat purchase — generated on payment, or issued by an admin.
@@ -236,6 +237,23 @@ model ActivitySession {
 
   @@index([orgId, startedAt])
   @@index([employeeId, startedAt])
+}
+
+// Classifies an app or website as productive / unproductive / neutral for this org.
+// `pattern` is matched case-insensitively as a substring of ActivitySession.name;
+// the longest matching pattern wins, so "mail.google.com" beats "google.com".
+// Orgs start from DEFAULT_CATEGORY_RULES in @eagle/shared and override from there.
+model ActivityCategory {
+  id        String       @id @default(cuid())
+  orgId     String
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  type      String // APP | WEB
+  pattern   String
+  category  String // PRODUCTIVE | UNPRODUCTIVE | NEUTRAL
+  createdAt DateTime     @default(now())
+
+  @@unique([orgId, type, pattern])
+  @@index([orgId])
 }
 
 model TrackingSetting {

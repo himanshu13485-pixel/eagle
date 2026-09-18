@@ -49,7 +49,7 @@ export function AppWebsiteUsage() {
   function exportCsv() {
     if (!data) return;
     const rows = view === "usage"
-      ? [["Name", "Type", "Total Time"], ...data.detailed.map((d) => [d.name, d.type, fmtHM(d.totalSec)])]
+      ? [["Name", "Type", "Category", "Total Time"], ...data.detailed.map((d) => [d.name, d.type, d.category, fmtHM(d.totalSec)])]
       : [["Employee", "Total Time"], ...data.byEmployee.map((e) => [e.employeeName, fmtHM(e.totalSec)])];
     downloadCsv(`app-website-usage_${applied.from}_${applied.to}.csv`, toCsv(rows));
   }
@@ -136,6 +136,7 @@ export function AppWebsiteUsage() {
                 <th className="px-5 py-3">#</th>
                 <th className="px-5 py-3">Name</th>
                 <th className="px-5 py-3">Type</th>
+                <th className="px-5 py-3">Category</th>
                 <th className="px-5 py-3">Total Time</th>
                 <th className="px-5 py-3">Shift Time</th>
                 <th className="px-5 py-3">Overtime</th>
@@ -149,24 +150,26 @@ export function AppWebsiteUsage() {
                     <td className="px-5 py-3 text-gray-400">{i + 1}</td>
                     <td className="px-5 py-3 font-medium text-gray-900">{d.name}</td>
                     <td className="px-5 py-3"><span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${d.type === "WEB" ? "bg-sky-100 text-sky-700" : "bg-indigo-100 text-indigo-700"}`}>{d.type === "WEB" ? "Web" : "App"}</span></td>
+                    <td className="px-5 py-3"><CategoryChip category={d.category} /></td>
                     <td className="px-5 py-3">{fmtHM(d.totalSec)}</td>
                     <td className="px-5 py-3 text-gray-400">—</td>
                     <td className="px-5 py-3 text-gray-400">—</td>
                     <td className="px-5 py-3 text-right"><button onClick={() => setDetailFor({ name: d.name, type: d.type })} className="text-sm font-semibold text-brand hover:underline">👁 View</button></td>
                   </tr>
-                )) : <tr><td colSpan={7} className="px-5 py-10 text-center text-gray-400">No usage recorded yet.</td></tr>
+                )) : <tr><td colSpan={8} className="px-5 py-10 text-center text-gray-400">No usage recorded yet.</td></tr>
               ) : (
                 data?.byEmployee.length ? data.byEmployee.map((e, i) => (
                   <tr key={e.employeeId} className="hover:bg-gray-50">
                     <td className="px-5 py-3 text-gray-400">{i + 1}</td>
                     <td className="px-5 py-3 font-medium text-gray-900">{e.employeeName}</td>
                     <td className="px-5 py-3 text-gray-400">—</td>
+                    <td className="px-5 py-3 text-gray-400">—</td>
                     <td className="px-5 py-3">{fmtHM(e.totalSec)}</td>
                     <td className="px-5 py-3 text-gray-400">—</td>
                     <td className="px-5 py-3 text-gray-400">—</td>
                     <td className="px-5 py-3 text-right"><button onClick={() => nav(`/employees/${e.employeeId}`)} className="text-sm font-semibold text-brand hover:underline">Visit profile →</button></td>
                   </tr>
-                )) : <tr><td colSpan={7} className="px-5 py-10 text-center text-gray-400">No employee usage yet.</td></tr>
+                )) : <tr><td colSpan={8} className="px-5 py-10 text-center text-gray-400">No employee usage yet.</td></tr>
               )}
             </tbody>
           </table>
@@ -324,4 +327,16 @@ function Tile({ icon, tone, label, value, foot, info }: { icon: string; tone: st
       {foot && <p className="mt-0.5 text-xs">{foot}</p>}
     </div>
   );
+}
+
+const CATEGORY_CHIP: Record<string, { label: string; cls: string }> = {
+  PRODUCTIVE: { label: "Productive", cls: "bg-green-100 text-green-700" },
+  UNPRODUCTIVE: { label: "Unproductive", cls: "bg-rose-100 text-rose-600" },
+  NEUTRAL: { label: "Neutral", cls: "bg-gray-100 text-gray-500" },
+};
+
+/** How this app/site is classified — change it in Settings → Productivity. */
+function CategoryChip({ category }: { category: string }) {
+  const c = CATEGORY_CHIP[category] ?? CATEGORY_CHIP.NEUTRAL;
+  return <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${c.cls}`}>{c.label}</span>;
 }

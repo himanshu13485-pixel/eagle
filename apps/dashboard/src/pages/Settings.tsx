@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Mark } from "../components/Mark";
 import type { ReactNode } from "react";
-import { TrackingMode, type EmployeeDto, type TeamSnapshotReport } from "@eagle/shared";
+import { ActivityCategory, TrackingMode, UsageType, type EmployeeDto, type TeamSnapshotReport } from "@eagle/shared";
 import { PageHeader } from "../components/Layout";
 import { api } from "../lib/api";
 
@@ -19,11 +19,11 @@ interface TrackingSettings {
   blockedSites: string; // CSV of hosts
 }
 
-const TABS = ["Reports & Notifications", "Screenshot Settings", "Tracking Controls", "Website Blocking", "Shift", "Bulk Update", "Integrations"] as const;
+const TABS = ["Reports & Notifications", "Screenshot Settings", "Tracking Controls", "Productivity", "Website Blocking", "Shift", "Bulk Update", "Integrations"] as const;
 type Tab = (typeof TABS)[number];
 const TAB_ICON: Record<Tab, string> = {
   "Reports & Notifications": "✉️", "Screenshot Settings": "🖥️", "Tracking Controls": "🕒",
-  "Website Blocking": "🚫", "Shift": "📅", "Bulk Update": "👥", "Integrations": "🔗",
+  "Productivity": "🎯", "Website Blocking": "🚫", "Shift": "📅", "Bulk Update": "👥", "Integrations": "🔗",
 };
 
 export function Settings() {
@@ -41,6 +41,7 @@ export function Settings() {
       {tab === "Reports & Notifications" && <ReportsTab />}
       {tab === "Screenshot Settings" && <ScreenshotTab />}
       {tab === "Tracking Controls" && <TrackingControlsTab />}
+      {tab === "Productivity" && <ProductivityTab />}
       {tab === "Website Blocking" && <WebsiteBlockingTab />}
       {tab === "Shift" && <ShiftTab />}
       {tab === "Bulk Update" && <BulkTab />}
@@ -320,6 +321,126 @@ function ScreenshotTab() {
         </Card>
       </div>
       <SaveBar saved={saved} onSave={() => save({ periodicScreenshots: s.periodicScreenshots, appSwitchScreenshots: s.appSwitchScreenshots, webcamPhotos: s.webcamPhotos, screenshotIntervalMin: s.screenshotIntervalMin, appSwitchDelayMin: s.appSwitchDelayMin, idleAfterMin: s.idleAfterMin, screenshotMaxHeight: s.screenshotMaxHeight })} />
+    </>
+  );
+}
+
+/* ---------------- Productivity categories ---------------- */
+interface Observed { type: string; name: string; totalSec: number; category: ActivityCategory; custom: boolean }
+
+const CATEGORY_STYLE: Record<string, string> = {
+  PRODUCTIVE: "bg-green-100 text-green-700",
+  UNPRODUCTIVE: "bg-rose-100 text-rose-600",
+  NEUTRAL: "bg-gray-100 text-gray-500",
+};
+const CATEGORY_LABEL: Record<string, string> = {
+  PRODUCTIVE: "Productive", UNPRODUCTIVE: "Unproductive", NEUTRAL: "Neutral",
+};
+const CATEGORIES = [ActivityCategory.PRODUCTIVE, ActivityCategory.NEUTRAL, ActivityCategory.UNPRODUCTIVE];
+
+function ProductivityTab() {
+  const [rows, setRows] = useState<Observed[] | null>(null);
+  const [filter, setFilter] = useState<"all" | "app" | "web">("all");
+  const [q, setQ] = useState("");
+  const [toast, setToast] = useState("");
+
+  const load = () => { api<Observed[]>("/categories/observed?days=30").then(setRows).catch(() => setRows([])); };
+  useEffect(load, []);
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 2500); return () => clearTimeout(t); }, [toast]);
+
+  async function setCategory(row: Observed, category: ActivityCategory) {
+    // Optimistic: the list runs long and a round-trip per click feels broken.
+    setRows((cur) => cur?.map((r) => (r.name === row.name && r.type === row.type ? { ...r, category, custom: true } : r)) ?? cur);
+    try {
+      await api("/categories/rules", { method: "POST", body: JSON.stringify({ type: row.type, pattern: row.name, category }) });
+    } catch {
+      setToast("Couldn't save that — reloading.");
+      load();
+    }
+  }
+
+  async function resetAll() {
+    if (!confirm("Remove all your custom rules and go back to the defaults?")) return;
+    try { await api("/categories/reset", { method: "POST" }); load(); setToast("Back to defaults."); }
+    catch { setToast("Couldn't reset."); }
+  }
+
+  const shown = useMemo(() => {
+    const needle = q.trim().toLowerCase();
+    return (rows ?? []).filter((r) => (filter === "all" || r.type.toLowerCase() === filter) && (!needle || r.name.toLowerCase().includes(needle)));
+  }, [rows, filter, q]);
+
+  const totals = useMemo(() => {
+    const t: Record<string, number> = { PRODUCTIVE: 0, UNPRODUCTIVE: 0, NEUTRAL: 0 };
+    for (const r of rows ?? []) t[r.category] = (t[r.category] ?? 0) + r.totalSec;
+    return t;
+  }, [rows]);
+  const grand = totals.PRODUCTIVE + totals.UNPRODUCTIVE + totals.NEUTRAL;
+  const share = (n: number) => (grand ? Math.round((n / grand) * 100) : 0);
+
+  if (!rows) return <div className="text-gray-400">Loading activity…</div>;
+
+  return (
+    <>
+      <Card title="What counts as productive" desc="Classify the apps and websites your team actually uses. This drives the Focus figure on Productivity Trends and the distraction list in emailed reports.">
+        {rows.length === 0 ? (
+          <p className="text-sm text-gray-400">No activity recorded in the last 30 days yet. Once agents report app and website usage, everything they use appears here to classify.</p>
+        ) : (
+          <>
+            <div className="mb-4 flex gap-2 text-xs font-semibold">
+              {CATEGORIES.map((c) => (
+                <div key={c} className={`flex-1 rounded-xl px-3 py-2 ${CATEGORY_STYLE[c]}`}>
+                  {CATEGORY_LABEL[c]}<div className="text-lg font-black">{share(totals[c])}%</div>
+                </div>
+              ))}
+            </div>
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search apps and sites…" className="min-w-[12rem] flex-1 rounded-xl border border-gray-200 px-4 py-2 text-sm" />
+              <select value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)} className="rounded-xl border border-gray-200 px-3 py-2 text-sm">
+                <option value="all">All</option>
+                <option value="app">Apps</option>
+                <option value="web">Websites</option>
+              </select>
+              <button onClick={resetAll} className="rounded-xl border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50">Reset to defaults</button>
+            </div>
+            <div className="max-h-[28rem] overflow-y-auto rounded-xl border border-gray-100">
+              <table className="w-full text-left text-sm">
+                <thead className="sticky top-0 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                  <tr><th className="px-4 py-2.5">App / Website</th><th className="px-4 py-2.5">Time</th><th className="px-4 py-2.5 text-right">Category</th></tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {shown.map((r) => (
+                    <tr key={`${r.type}:${r.name}`} className="hover:bg-gray-50/60">
+                      <td className="px-4 py-2.5">
+                        <span className="mr-2 text-gray-400">{r.type === UsageType.WEB ? "🌐" : "🖥"}</span>
+                        <span className="font-medium text-gray-900">{r.name}</span>
+                        {r.custom && <span className="ml-2 rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-bold uppercase text-brand">Custom</span>}
+                      </td>
+                      <td className="px-4 py-2.5 text-gray-500">{fmtDur(r.totalSec)}</td>
+                      <td className="px-4 py-2.5">
+                        <div className="flex justify-end gap-1">
+                          {CATEGORIES.map((c) => (
+                            <button key={c} onClick={() => setCategory(r, c)}
+                              className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${r.category === c ? CATEGORY_STYLE[c] : "text-gray-400 hover:bg-gray-100"}`}>
+                              {CATEGORY_LABEL[c]}
+                            </button>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {shown.length === 0 && <tr><td colSpan={3} className="px-4 py-10 text-center text-gray-400">Nothing matches.</td></tr>}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-3 text-xs text-gray-400">
+              New apps start from a shipped default list, so reports mean something before you touch anything.
+              Anything unrecognised counts as Neutral — it neither helps nor hurts the Focus figure.
+            </p>
+          </>
+        )}
+      </Card>
+      {toast && <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-gray-900 px-5 py-3 text-sm font-medium text-white shadow-xl">{toast}</div>}
     </>
   );
 }

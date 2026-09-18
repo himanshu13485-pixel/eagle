@@ -1,6 +1,8 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { CategoriesService } from "../categories/categories.service";
 import {
+  ActivityCategory,
   ActivitySpan,
   AppWebsiteDetail,
   AppWebsiteUsageReport,
@@ -55,7 +57,22 @@ interface Session {
 
 @Injectable()
 export class ReportsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly categories: CategoriesService,
+  ) {}
+
+  /** Zeroed productive/unproductive/neutral split, for accumulating over sessions. */
+  private static cat() {
+    return { productive: 0, unproductive: 0, neutral: 0 };
+  }
+
+  /** Add a session's active seconds to the right category bucket. */
+  private static addCat(acc: { productive: number; unproductive: number; neutral: number }, c: ActivityCategory, sec: number) {
+    if (c === ActivityCategory.PRODUCTIVE) acc.productive += sec;
+    else if (c === ActivityCategory.UNPRODUCTIVE) acc.unproductive += sec;
+    else acc.neutral += sec;
+  }
 
   private range(from?: string, to?: string): { from: Date; to: Date } {
     const toD = to ? new Date(to) : new Date();
@@ -234,9 +251,10 @@ export class ReportsService {
     const type: UsageTypeFilter = opts.type ?? "all";
     const empIds = opts.employeeIds?.length ? new Set(opts.employeeIds) : undefined;
 
-    const [employees, allSessions] = await Promise.all([
+    const [employees, allSessions, classify] = await Promise.all([
       this.prisma.employee.findMany({ where: { orgId }, select: { id: true, name: true } }),
       this.sessions(orgId, r.from, r.to),
+      this.categories.classifierFor(orgId),
     ]);
     const nameById = new Map(employees.map((e) => [e.id, e.name]));
     const sessions = allSessions.filter(
@@ -265,7 +283,10 @@ export class ReportsService {
     }
 
     const detailed = Array.from(byName.entries())
-      .map(([key, v]) => ({ name: key.split("::")[1], type: v.type, totalSec: v.sec }))
+      .map(([key, v]) => {
+        const name = key.split("::")[1];
+        return { name, type: v.type, totalSec: v.sec, category: classify(v.type, name) };
+      })
       .sort((a, b) => b.totalSec - a.totalSec);
 
     const topApp = detailed.find((d) => d.type === UsageType.APP) ?? null;
@@ -315,13 +336,17 @@ export class ReportsService {
   /** The emailed "Team Productivity Snapshot": summary + distractions + top apps/sites + per-employee highlights. */
   async teamSnapshot(orgId: string, from?: string, to?: string): Promise<TeamSnapshotReport> {
     const r = this.range(from, to);
-    const [employees, sessions] = await Promise.all([
+    const [employees, sessions, classify] = await Promise.all([
       this.prisma.employee.findMany({ where: { orgId }, select: { id: true, name: true } }),
       this.sessions(orgId, r.from, r.to),
+      this.categories.classifierFor(orgId),
     ]);
     const nameById = new Map(employees.map((e) => [e.id, e.name]));
-    const isDistracting = (host: string) =>
-      ["youtube", "linkedin", "facebook", "instagram", "twitter", "x.com", "reddit", "netflix", "spotify", "tiktok", "twitch", "primevideo", "hotstar"].some((k) => host.toLowerCase().includes(k));
+    // "Distracting" now means whatever the org marked UNPRODUCTIVE in
+    // Settings → Productivity, rather than a hardcoded list that called
+    // every LinkedIn visit a distraction for a recruiter.
+    const isDistracting = (type: string, name: string) =>
+      classify(type, name) === ActivityCategory.UNPRODUCTIVE;
 
     let activeSec = 0;
     let idleSec = 0;
@@ -351,7 +376,7 @@ export class ReportsService {
         pe.byName.set(s.name, (pe.byName.get(s.name) ?? 0) + s.durationSec);
         if (s.type === UsageType.WEB) {
           bump(webAgg, s.name, s.employeeId, s.durationSec);
-          if (isDistracting(s.name)) bump(distractAgg, s.name, s.employeeId, s.durationSec);
+          if (isDistracting(s.type, s.name)) bump(distractAgg, s.name, s.employeeId, s.durationSec);
         } else {
           bump(appAgg, s.name, s.employeeId, s.durationSec);
         }
@@ -480,22 +505,24 @@ export class ReportsService {
     const prevFrom = new Date(r.from.getTime() - span);
     const prevTo = new Date(r.from.getTime());
 
-    const [employees, sessions, prevSessions] = await Promise.all([
+    const [employees, sessions, prevSessions, classify] = await Promise.all([
       this.prisma.employee.findMany({
         where: { orgId },
         select: { id: true, name: true, teamId: true, team: { select: { name: true } } },
       }),
       this.sessions(orgId, r.from, r.to),
       this.sessions(orgId, prevFrom, prevTo),
+      this.categories.classifierFor(orgId),
     ]);
 
     let usage = 0;
     let idle = 0;
     let weekendSec = 0;
     const weekday = WEEKDAY_LABELS.map((label, i) => ({ weekday: i, label, active: 0, idle: 0 }));
-    const drivers = new Map<string, { type: UsageType; sec: number }>();
-    const perEmp = new Map<string, { usage: number; idle: number }>();
-    const byDay = new Map<string, { active: number; idle: number }>();
+    const drivers = new Map<string, { type: UsageType; sec: number; category: ActivityCategory }>();
+    const perEmp = new Map<string, { usage: number; idle: number; cat: ReturnType<typeof ReportsService.cat> }>();
+    const byDay = new Map<string, { active: number; idle: number; cat: ReturnType<typeof ReportsService.cat> }>();
+    const totalCat = ReportsService.cat();
 
     for (const s of sessions) {
       if (s.isIdle) idle += s.durationSec;
@@ -506,21 +533,26 @@ export class ReportsService {
       else wd.active += s.durationSec;
       if (!s.isIdle && (dow === 0 || dow === 6)) weekendSec += s.durationSec;
 
+      // Idle time is neither productive nor unproductive — only active time is
+      // classified, so "focus" measures what the working time went on.
+      const category = s.isIdle ? ActivityCategory.NEUTRAL : classify(s.type, s.name);
+      if (!s.isIdle) ReportsService.addCat(totalCat, category, s.durationSec);
+
       if (!s.isIdle) {
         const key = `${s.type}::${s.name}`;
-        const d = drivers.get(key) ?? { type: s.type as UsageType, sec: 0 };
+        const d = drivers.get(key) ?? { type: s.type as UsageType, sec: 0, category };
         d.sec += s.durationSec;
         drivers.set(key, d);
       }
-      const pe = perEmp.get(s.employeeId) ?? { usage: 0, idle: 0 };
+      const pe = perEmp.get(s.employeeId) ?? { usage: 0, idle: 0, cat: ReportsService.cat() };
       if (s.isIdle) pe.idle += s.durationSec;
-      else pe.usage += s.durationSec;
+      else { pe.usage += s.durationSec; ReportsService.addCat(pe.cat, category, s.durationSec); }
       perEmp.set(s.employeeId, pe);
 
       const dk = dayKey(s.startedAt);
-      const bd = byDay.get(dk) ?? { active: 0, idle: 0 };
+      const bd = byDay.get(dk) ?? { active: 0, idle: 0, cat: ReportsService.cat() };
       if (s.isIdle) bd.idle += s.durationSec;
-      else bd.active += s.durationSec;
+      else { bd.active += s.durationSec; ReportsService.addCat(bd.cat, category, s.durationSec); }
       byDay.set(dk, bd);
     }
 
@@ -544,7 +576,7 @@ export class ReportsService {
     let strongestGain: ProductivityTrendsReport["snapshot"]["strongestGain"] = null;
 
     const empRows = employees.map((e) => {
-      const pe = perEmp.get(e.id) ?? { usage: 0, idle: 0 };
+      const pe = perEmp.get(e.id) ?? { usage: 0, idle: 0, cat: ReportsService.cat() };
       const total = pe.usage + pe.idle;
       const idlePct = pct(pe.idle, total);
       const prodPct = pct(pe.usage, total);
@@ -568,31 +600,44 @@ export class ReportsService {
         idlePct,
         activeSec: pe.usage,
         idleSec: pe.idle,
+        productiveSec: pe.cat.productive,
+        unproductiveSec: pe.cat.unproductive,
+        neutralSec: pe.cat.neutral,
+        focusPct: pct(pe.cat.productive, pe.usage),
         trendDeltaSec,
         alert: (idlePct >= 40 ? "HIGH_IDLE" : "OK") as "OK" | "HIGH_IDLE",
       };
     });
 
     // teams aggregation
-    const teamAcc = new Map<string, { teamId: string | null; teamName: string; active: number; idle: number; emps: Set<string> }>();
+    const teamAcc = new Map<string, { teamId: string | null; teamName: string; active: number; idle: number; productive: number; emps: Set<string> }>();
     for (const e of employees) {
       const key = e.teamId ?? "__none__";
-      const t = teamAcc.get(key) ?? { teamId: e.teamId, teamName: e.team?.name ?? "No team", active: 0, idle: 0, emps: new Set() };
+      const t = teamAcc.get(key) ?? { teamId: e.teamId, teamName: e.team?.name ?? "No team", active: 0, idle: 0, productive: 0, emps: new Set() };
       const pe = perEmp.get(e.id);
-      if (pe) { t.active += pe.usage; t.idle += pe.idle; }
+      if (pe) { t.active += pe.usage; t.idle += pe.idle; t.productive += pe.cat.productive; }
       t.emps.add(e.id);
       teamAcc.set(key, t);
     }
     const teams = Array.from(teamAcc.values())
-      .map((t) => ({ teamId: t.teamId, teamName: t.teamName, employeeCount: t.emps.size, activeSec: t.active, idleSec: t.idle, productivityPct: pct(t.active, t.active + t.idle) }))
+      .map((t) => ({ teamId: t.teamId, teamName: t.teamName, employeeCount: t.emps.size, activeSec: t.active, idleSec: t.idle, productivityPct: pct(t.active, t.active + t.idle), focusPct: pct(t.productive, t.active) }))
       .sort((a, b) => b.activeSec - a.activeSec);
 
     // daily series (fill every day in range)
-    const daily: { date: string; activeSec: number; idleSec: number; productivityPct: number }[] = [];
+    const daily: ProductivityTrendsReport["daily"] = [];
     for (let d = new Date(r.from); d <= r.to; d.setDate(d.getDate() + 1)) {
       const k = dayKey(d);
-      const bd = byDay.get(k) ?? { active: 0, idle: 0 };
-      daily.push({ date: k, activeSec: bd.active, idleSec: bd.idle, productivityPct: pct(bd.active, bd.active + bd.idle) });
+      const bd = byDay.get(k) ?? { active: 0, idle: 0, cat: ReportsService.cat() };
+      daily.push({
+        date: k,
+        activeSec: bd.active,
+        idleSec: bd.idle,
+        productivityPct: pct(bd.active, bd.active + bd.idle),
+        productiveSec: bd.cat.productive,
+        unproductiveSec: bd.cat.unproductive,
+        neutralSec: bd.cat.neutral,
+        focusPct: pct(bd.cat.productive, bd.active),
+      });
     }
 
     return {
@@ -608,6 +653,10 @@ export class ReportsService {
       },
       kpis: {
         productivityPct: pct(usage, logged),
+        productiveSec: totalCat.productive,
+        unproductiveSec: totalCat.unproductive,
+        neutralSec: totalCat.neutral,
+        focusPct: pct(totalCat.productive, usage),
         activeSec: usage,
         activeDeltaSec: usage - prevUsage,
         idleSec: idle,
@@ -623,7 +672,7 @@ export class ReportsService {
         idleSec: w.idle,
       })),
       topDrivers: Array.from(drivers.entries())
-        .map(([key, v]) => ({ type: v.type, name: key.split("::")[1], activeSec: v.sec }))
+        .map(([key, v]) => ({ type: v.type, name: key.split("::")[1], activeSec: v.sec, category: v.category }))
         .sort((a, b) => b.activeSec - a.activeSec)
         .slice(0, 12),
       idleBurden,

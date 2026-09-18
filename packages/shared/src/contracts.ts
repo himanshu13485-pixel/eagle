@@ -1,4 +1,5 @@
 import {
+  ActivityCategory,
   DevicePlatform,
   PresenceStatus,
   ScreenshotTrigger,
@@ -182,6 +183,8 @@ export interface UsageEntry {
   name: string;
   type: UsageType;
   totalSec: number;
+  /** How this app/site is classified for the org (Settings → Productivity). */
+  category: ActivityCategory;
 }
 export type UsageTypeFilter = "all" | "app" | "web";
 export type ComparePeriod = "none" | "previous_period" | "previous_week" | "previous_month";
@@ -267,6 +270,10 @@ export interface EmployeeProductivity {
   idlePct: number;
   activeSec: number;
   idleSec: number;
+  productiveSec: number;
+  unproductiveSec: number;
+  neutralSec: number;
+  focusPct: number; // productive share of active time
   trendDeltaSec: number; // active-time change vs the previous equal-length period
   alert: "OK" | "HIGH_IDLE";
 }
@@ -277,6 +284,7 @@ export interface TeamProductivity {
   activeSec: number;
   idleSec: number;
   productivityPct: number;
+  focusPct: number;
 }
 export interface ProductivityTrendsReport {
   from: string;
@@ -290,16 +298,32 @@ export interface ProductivityTrendsReport {
     strongestGain: { employeeId: string; employeeName: string; deltaSec: number } | null;
   };
   kpis: {
+    /** Active share of logged time — "were they at the machine". */
     productivityPct: number;
+    /** Active time split by what it was spent on (idle time is not classified). */
+    productiveSec: number;
+    unproductiveSec: number;
+    neutralSec: number;
+    /** Productive share of active time — "was the working time spent on work". */
+    focusPct: number;
     activeSec: number;
     activeDeltaSec: number;
     idleSec: number;
     idleDeltaSec: number;
     avgScore: number;
   };
-  daily: { date: string; activeSec: number; idleSec: number; productivityPct: number }[];
+  daily: {
+    date: string;
+    activeSec: number;
+    idleSec: number;
+    productivityPct: number;
+    productiveSec: number;
+    unproductiveSec: number;
+    neutralSec: number;
+    focusPct: number;
+  }[];
   weekday: WeekdayStat[];
-  topDrivers: { type: UsageType; name: string; activeSec: number }[];
+  topDrivers: { type: UsageType; name: string; activeSec: number; category: ActivityCategory }[];
   idleBurden: { low: number; moderate: number; high: number; critical: number };
   teams: TeamProductivity[];
   employees: EmployeeProductivity[];

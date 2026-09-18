@@ -17,6 +17,7 @@ import { TeamsModule } from "./teams/teams.module";
 import { BillingModule } from "./billing/billing.module";
 import { WorkspaceModule } from "./workspace/workspace.module";
 import { RetentionModule } from "./retention/retention.module";
+import { CategoriesModule } from "./categories/categories.module";
 import { AdminModule } from "./admin/admin.module";
 import { NotificationsModule } from "./notifications/notifications.module";
 import { ContactModule } from "./contact/contact.module";
@@ -43,6 +44,7 @@ import { InvoicesModule } from "./invoices/invoices.module";
     BillingModule,
     WorkspaceModule,
     RetentionModule,
+    CategoriesModule,
     AdminModule,
     NotificationsModule,
     InvoicesModule,
