@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { CategoriesService } from "../categories/categories.service";
+import { ShiftsService, type ShiftDef } from "./shifts.service";
 import {
   ActivityCategory,
   ActivitySpan,
@@ -42,8 +43,16 @@ interface Agg {
   last: Date | null;
   byName: Map<string, number>;
   activeDays: Set<string>;
+  /** Worked seconds inside / outside the employee's rostered shift. Both stay 0
+   *  when nobody assigned a shift, and the report shows a dash instead. */
+  shiftSec: number;
+  overtimeSec: number;
+  shiftName: string | null;
 }
-const mkAgg = (): Agg => ({ usage: 0, idle: 0, first: null, last: null, byName: new Map(), activeDays: new Set() });
+const mkAgg = (): Agg => ({
+  usage: 0, idle: 0, first: null, last: null, byName: new Map(), activeDays: new Set(),
+  shiftSec: 0, overtimeSec: 0, shiftName: null,
+});
 
 interface Session {
   employeeId: string;
@@ -60,6 +69,7 @@ export class ReportsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly categories: CategoriesService,
+    private readonly shifts: ShiftsService,
   ) {}
 
   /** Zeroed productive/unproductive/neutral split, for accumulating over sessions. */
@@ -74,9 +84,19 @@ export class ReportsService {
     else acc.neutral += sec;
   }
 
+  /**
+   * Report window from the query string. The UI sends bare dates ("2026-03-15"),
+   * which parse as midnight — so an inclusive-looking "to" was excluding that
+   * entire day, and a from==to single-day report returned nothing at all.
+   * A date-only bound is widened to cover the whole day; an explicit timestamp
+   * is honoured as given.
+   */
   private range(from?: string, to?: string): { from: Date; to: Date } {
+    const dateOnly = (v: string) => /^\d{4}-\d{2}-\d{2}$/.test(v.trim());
     const toD = to ? new Date(to) : new Date();
+    if (to && dateOnly(to)) toD.setUTCHours(23, 59, 59, 999);
     const fromD = from ? new Date(from) : new Date(toD.getTime() - 14 * 86400_000);
+    if (from && dateOnly(from)) fromD.setUTCHours(0, 0, 0, 0);
     return { from: fromD, to: toD };
   }
 
@@ -95,9 +115,17 @@ export class ReportsService {
     });
   }
 
-  private addSession(a: Agg, s: Session, breakdown: TimesheetBreakdown) {
+  private addSession(a: Agg, s: Session, breakdown: TimesheetBreakdown, shift?: ShiftDef) {
     if (s.isIdle) a.idle += s.durationSec;
     else a.usage += s.durationSec;
+    // Only worked time is split — idle minutes inside a shift are neither
+    // rostered work nor overtime.
+    if (!s.isIdle && shift) {
+      const split = this.shifts.splitSpan(shift, s.startedAt, s.endedAt);
+      a.shiftSec += split.shiftSec;
+      a.overtimeSec += split.overtimeSec;
+      a.shiftName = shift.name;
+    }
     if (!a.first || s.startedAt < a.first) a.first = s.startedAt;
     if (!a.last || s.endedAt > a.last) a.last = s.endedAt;
     a.activeDays.add(dayKey(s.startedAt));
@@ -107,9 +135,17 @@ export class ReportsService {
     }
   }
 
-  private rowFromAgg(id: string, name: string, date: string | null, a: Agg | undefined, absentDays: number | null): TimesheetRow {
+  private rowFromAgg(
+    id: string,
+    name: string,
+    date: string | null,
+    a: Agg | undefined,
+    absentDays: number | null,
+    shift?: ShiftDef,
+  ): TimesheetRow {
     const usage = a?.usage ?? 0;
     const idle = a?.idle ?? 0;
+    const lateSec = shift && a?.first ? this.shifts.lateBySec(shift, a.first) : null;
     return {
       employeeId: id,
       employeeName: name,
@@ -120,7 +156,10 @@ export class ReportsService {
       idleSec: idle,
       offlineSec: 0, // agent offline-duration tracking is a later phase; shown separately
       trackedSec: usage + idle,
-      overtimeSec: 0, // needs shift config; placeholder (matches SuperSee's unset shifts)
+      shiftSec: a?.shiftSec ?? 0,
+      overtimeSec: a?.overtimeSec ?? 0,
+      shiftName: shift?.name ?? null,
+      lateSec,
       absentDays,
       breakdown: a ? Object.fromEntries(a.byName) : null,
     };
@@ -154,7 +193,10 @@ export class ReportsService {
       orderBy: { createdAt: "asc" },
     });
     const empIds = new Set(employees.map((e) => e.id));
-    const sessions = (await this.sessions(orgId, from, to)).filter((s) => empIds.has(s.employeeId));
+    const [sessions, shiftByEmp] = await Promise.all([
+      this.sessions(orgId, from, to).then((all) => all.filter((s) => empIds.has(s.employeeId))),
+      this.shifts.byEmployee(orgId),
+    ]);
 
     let rows: TimesheetRow[] = [];
 
@@ -163,15 +205,16 @@ export class ReportsService {
       const emp = employees[0];
       const byDay = new Map<string, Agg>();
       if (emp) {
+        const shift = shiftByEmp.get(emp.id);
         for (const s of sessions.filter((x) => x.employeeId === emp.id)) {
           const k = dayKey(s.startedAt);
           const a = byDay.get(k) ?? mkAgg();
-          this.addSession(a, s, breakdown);
+          this.addSession(a, s, breakdown, shift);
           byDay.set(k, a);
         }
         for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
           const k = dayKey(d);
-          rows.push(this.rowFromAgg(emp.id, emp.name, k, byDay.get(k), null));
+          rows.push(this.rowFromAgg(emp.id, emp.name, k, byDay.get(k), null, shift));
         }
       }
     } else {
@@ -179,14 +222,19 @@ export class ReportsService {
       const byEmp = new Map<string, Agg>();
       for (const s of sessions) {
         const a = byEmp.get(s.employeeId) ?? mkAgg();
-        this.addSession(a, s, breakdown);
+        this.addSession(a, s, breakdown, shiftByEmp.get(s.employeeId));
         byEmp.set(s.employeeId, a);
       }
       const totalDays = mode === "period" ? this.daysInRange(from, to) : 0;
       rows = employees.map((e) => {
         const a = byEmp.get(e.id);
-        const absent = mode === "period" ? totalDays - (a?.activeDays.size ?? 0) : null;
-        return this.rowFromAgg(e.id, e.name, null, a, absent);
+        const shift = shiftByEmp.get(e.id);
+        // With a roster, "absent" means a rostered day with no activity —
+        // counting Sundays as absences was never useful. Without one, fall back
+        // to every day in the range as before.
+        const rostered = shift ? this.shifts.workingDayKeys(shift, from, to).length : totalDays;
+        const absent = mode === "period" ? Math.max(0, rostered - (a?.activeDays.size ?? 0)) : null;
+        return this.rowFromAgg(e.id, e.name, null, a, absent, shift);
       });
     }
 
@@ -207,9 +255,10 @@ export class ReportsService {
         idleSec: t.idleSec + row.idleSec,
         offlineSec: t.offlineSec + row.offlineSec,
         trackedSec: t.trackedSec + row.trackedSec,
+        shiftSec: t.shiftSec + row.shiftSec,
         overtimeSec: t.overtimeSec + row.overtimeSec,
       }),
-      { usageSec: 0, idleSec: 0, offlineSec: 0, trackedSec: 0, overtimeSec: 0 },
+      { usageSec: 0, idleSec: 0, offlineSec: 0, trackedSec: 0, shiftSec: 0, overtimeSec: 0 },
     );
 
     const caption =
@@ -223,10 +272,12 @@ export class ReportsService {
   }
 
   /** Inclusive count of calendar days spanned by [from, to]. */
+  /** Inclusive day count, counted in UTC so it agrees with dayKey() — which is
+   *  what activeDays holds. Using local midnight here shifted the count by a day
+   *  whenever the server's zone was ahead of UTC. */
   private daysInRange(from: Date, to: Date): number {
-    const a = new Date(from); a.setHours(0, 0, 0, 0);
-    const b = new Date(to); b.setHours(0, 0, 0, 0);
-    return Math.floor((b.getTime() - a.getTime()) / 86400_000) + 1;
+    const utcDay = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    return Math.floor((utcDay(to) - utcDay(from)) / 86400_000) + 1;
   }
 
   /** Sum of non-idle activity (optionally type/employee-filtered) in a window — for compare periods. */

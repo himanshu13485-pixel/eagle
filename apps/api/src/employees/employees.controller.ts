@@ -13,7 +13,7 @@ import {
   UseInterceptors,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { IsEmail, IsIn, IsObject, IsOptional, IsString } from "class-validator";
+import { IsArray, IsEmail, IsIn, IsObject, IsOptional, IsString } from "class-validator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CurrentUser, RequestUser } from "../auth/current-user.decorator";
 import { EmployeesService } from "./employees.service";
@@ -25,6 +25,12 @@ class CreateEmployeeDto {
   @IsOptional() @IsEmail() email?: string;
   @IsOptional() @IsString() department?: string;
   @IsOptional() @IsIn(ROLES) role?: string;
+  @IsOptional() @IsString() shiftId?: string | null;
+}
+
+class AssignShiftDto {
+  @IsArray() @IsString({ each: true }) employeeIds!: string[];
+  @IsOptional() @IsString() shiftId?: string | null;
 }
 
 class UpdateEmployeeDto {
@@ -62,6 +68,12 @@ export class EmployeesController {
   @Post("employees/:id/enroll-token")
   enrollToken(@CurrentUser() user: RequestUser, @Param("id") id: string) {
     return this.employees.createEnrollToken(user.orgId, id);
+  }
+
+  /** Roster several employees onto a shift (or clear it with a null shiftId). */
+  @Post("employees/assign-shift")
+  assignShift(@CurrentUser() user: RequestUser, @Body() dto: AssignShiftDto) {
+    return this.employees.assignShift(user.orgId, dto.employeeIds, dto.shiftId ?? null);
   }
 
   @Patch("employees/:id")

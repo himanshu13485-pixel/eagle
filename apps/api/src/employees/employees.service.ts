@@ -86,6 +86,8 @@ export class EmployeesService {
       avatarUrl: e.avatarKey ? await this.storage.presignGet(e.avatarKey) : null,
       teamId: e.teamId,
       teamName: e.team?.name ?? null,
+      shiftId: e.shift?.id ?? null,
+      shiftName: e.shift?.name ?? null,
       status: status as never,
       active: e.active,
       lastActiveAt: e.lastActiveAt?.toISOString() ?? null,
@@ -100,6 +102,7 @@ export class EmployeesService {
 
   private readonly dtoInclude = {
     team: { select: { name: true } },
+    shift: { select: { id: true, name: true } },
     _count: { select: { devices: true } },
     devices: {
       where: { enrolled: true },
@@ -153,7 +156,7 @@ export class EmployeesService {
   async update(
     orgId: string,
     id: string,
-    data: { name?: string; email?: string | null; department?: string | null; role?: string },
+    data: { name?: string; email?: string | null; department?: string | null; role?: string; shiftId?: string | null },
   ) {
     const employee = await this.prisma.employee.findFirst({ where: { id, orgId } });
     if (!employee) throw new NotFoundException("Employee not found");
@@ -165,8 +168,23 @@ export class EmployeesService {
         ...(data.email !== undefined ? { email: data.email } : {}),
         ...(data.role !== undefined ? { role: data.role } : {}),
         ...(teamId !== undefined ? { teamId } : {}),
+        ...(data.shiftId !== undefined ? { shiftId: data.shiftId || null } : {}),
       },
     });
+  }
+
+  /** Assign (or clear, with null) a shift for several employees at once —
+   *  rostering one by one is the slow path nobody uses. */
+  async assignShift(orgId: string, employeeIds: string[], shiftId: string | null) {
+    if (shiftId) {
+      const shift = await this.prisma.shift.findFirst({ where: { id: shiftId, orgId } });
+      if (!shift) throw new NotFoundException("Shift not found");
+    }
+    const r = await this.prisma.employee.updateMany({
+      where: { id: { in: employeeIds }, orgId },
+      data: { shiftId },
+    });
+    return { ok: true, updated: r.count };
   }
 
   /** Store an uploaded profile image and point the employee at it. */

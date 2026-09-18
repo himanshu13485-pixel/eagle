@@ -669,6 +669,7 @@ function ShiftTab() {
   async function create() { if (!f.name.trim()) return; await api("/shifts", { method: "POST", body: JSON.stringify(f) }); setF({ name: "", timezone: "UTC", startTime: "09:00", endTime: "17:00", workingDays: [1, 2, 3, 4, 5] }); load(); }
   async function remove(id: string) { await api(`/shifts/${id}`, { method: "DELETE" }); load(); }
   return (
+    <>
     <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
       <div className="rounded-2xl bg-white p-5 shadow-sm">
         <h3 className="mb-4 font-bold text-gray-900">Shift Management</h3>
@@ -698,6 +699,123 @@ function ShiftTab() {
           <button onClick={create} className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-dark">+ Create Shift</button>
         </div>
       </div>
+    </div>
+    <RosterPanel shifts={shifts} />
+    </>
+  );
+}
+
+/**
+ * Who works which shift. Without this a shift is just a row in a table — the
+ * roster is what turns it into shift time, overtime, lateness and absences on
+ * the Timesheet.
+ */
+function RosterPanel({ shifts }: { shifts: Shift[] }) {
+  const [employees, setEmployees] = useState<EmployeeDto[]>([]);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [target, setTarget] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState("");
+
+  const load = () => { api<EmployeeDto[]>("/employees").then(setEmployees).catch(() => setEmployees([])); };
+  useEffect(load, []);
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 2500); return () => clearTimeout(t); }, [toast]);
+
+  const toggle = (id: string) =>
+    setPicked((c) => { const n = new Set(c); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+
+  async function apply() {
+    if (!picked.size) return;
+    setBusy(true);
+    try {
+      await api("/employees/assign-shift", {
+        method: "POST",
+        body: JSON.stringify({ employeeIds: [...picked], shiftId: target || null }),
+      });
+      setPicked(new Set());
+      load();
+      setToast(target ? "Shift assigned." : "Shift cleared.");
+    } catch {
+      setToast("Couldn't update the roster.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const unrostered = employees.filter((e) => !e.shiftId).length;
+
+  return (
+    <div className="mt-6 rounded-2xl bg-white p-5 shadow-sm">
+      <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="font-bold text-gray-900">Roster</h3>
+        <span className="text-xs text-gray-400">
+          {unrostered === 0 ? "Everyone is rostered." : `${unrostered} employee${unrostered === 1 ? "" : "s"} without a shift`}
+        </span>
+      </div>
+      <p className="mb-4 text-sm text-gray-500">
+        Assign people to a shift to get shift time, overtime, late starts and absences on the Timesheet.
+        Anyone without a shift is still tracked — their time just isn't split.
+      </p>
+
+      {shifts.length === 0 ? (
+        <p className="py-8 text-center text-sm text-gray-400">Create a shift first, then assign people to it.</p>
+      ) : employees.length === 0 ? (
+        <p className="py-8 text-center text-sm text-gray-400">No employees yet.</p>
+      ) : (
+        <>
+          <div className="max-h-72 overflow-y-auto rounded-xl border border-gray-100">
+            <table className="w-full text-left text-sm">
+              <thead className="sticky top-0 bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="w-10 px-4 py-2.5">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 accent-brand"
+                      checked={picked.size === employees.length && employees.length > 0}
+                      onChange={(e) => setPicked(e.target.checked ? new Set(employees.map((x) => x.id)) : new Set())}
+                    />
+                  </th>
+                  <th className="px-4 py-2.5">Employee</th>
+                  <th className="px-4 py-2.5">Department</th>
+                  <th className="px-4 py-2.5">Shift</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {employees.map((e) => (
+                  <tr key={e.id} className="hover:bg-gray-50/60">
+                    <td className="px-4 py-2.5">
+                      <input type="checkbox" className="h-4 w-4 accent-brand" checked={picked.has(e.id)} onChange={() => toggle(e.id)} />
+                    </td>
+                    <td className="px-4 py-2.5 font-medium text-gray-900">{e.name}</td>
+                    <td className="px-4 py-2.5 text-gray-500">{e.teamName ?? "—"}</td>
+                    <td className="px-4 py-2.5">
+                      {e.shiftName
+                        ? <span className="rounded-full bg-brand/10 px-2.5 py-0.5 text-xs font-semibold text-brand">{e.shiftName}</span>
+                        : <span className="text-xs text-gray-400">Not rostered</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="text-sm text-gray-500">{picked.size} selected →</span>
+            <select value={target} onChange={(e) => setTarget(e.target.value)} className="rounded-xl border border-gray-200 px-3 py-2 text-sm">
+              <option value="">No shift (clear)</option>
+              {shifts.map((sh) => <option key={sh.id} value={sh.id}>{sh.name}</option>)}
+            </select>
+            <button
+              onClick={apply}
+              disabled={!picked.size || busy}
+              className="rounded-xl bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-dark disabled:opacity-40"
+            >
+              {busy ? "Saving…" : "Apply"}
+            </button>
+          </div>
+        </>
+      )}
+      {toast && <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-gray-900 px-5 py-3 text-sm font-medium text-white shadow-xl">{toast}</div>}
     </div>
   );
 }

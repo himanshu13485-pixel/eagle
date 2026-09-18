@@ -163,6 +163,8 @@ model Employee {
   org              Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   teamId           String?
   team             Team?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  shiftId          String? // rostered shift; null = no roster, so no shift/overtime split
+  shift            Shift?       @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   name             String
   email            String?
   role             String       @default("EMPLOYEE") // EMPLOYEE | MANAGER | TEAM_LEAD (designation)
@@ -287,6 +289,8 @@ model Shift {
   endTime     String       @default("17:00")
   workingDays String       @default("1,2,3,4,5") // CSV of ISO weekday numbers
   createdAt   DateTime     @default(now())
+
+  employees Employee[]
 }
 
 model Subscription {

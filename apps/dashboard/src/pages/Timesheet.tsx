@@ -68,14 +68,14 @@ export function Timesheet() {
     const head = [
       "SR NO", "Employee",
       ...(mode === "user" ? ["Date"] : []),
-      ...(mode === "period" ? ["Total Usage", "Total Idle", "Total Offline", "Total Tracked", "Total Overtime", "Absent Days"] : ["First Activity", "Last Activity", "Usage", "Idle", "Offline", "Tracked"]),
+      ...(mode === "period" ? ["Shift", "Total Usage", "Total Idle", "Total Offline", "Total Tracked", "Shift Time", "Total Overtime", "Absent Days"] : ["Shift", "First Activity", "Late By", "Last Activity", "Usage", "Idle", "Offline", "Tracked"]),
       ...data.columns,
     ];
     const body = data.rows.map((r, i) => [
       i + 1, r.employeeName,
       ...(mode === "user" ? [r.date ? dayLabel(r.date) : "-"] : []),
       ...(mode === "period"
-        ? [fmtHMS(r.usageSec), fmtHMS(r.idleSec), fmtHMS(r.offlineSec), fmtHMS(r.trackedSec), fmtHMS(r.overtimeSec), r.absentDays ?? "-"]
+        ? [r.shiftName ?? "-", fmtHMS(r.usageSec), fmtHMS(r.idleSec), fmtHMS(r.offlineSec), fmtHMS(r.trackedSec), r.shiftName ? fmtHMS(r.shiftSec) : "-", r.shiftName ? fmtHMS(r.overtimeSec) : "-", r.absentDays ?? "-"]
         : [r.firstActivity ? fmtTime(r.firstActivity) : "-", r.lastActivity ? fmtTime(r.lastActivity) : "-", fmtHMS(r.usageSec), fmtHMS(r.idleSec), fmtHMS(r.offlineSec), fmtHMS(r.trackedSec)]),
       ...data.columns.map((c) => (r.breakdown?.[c] ? fmtHMS(r.breakdown[c]) : "-")),
     ]);
@@ -157,7 +157,7 @@ export function Timesheet() {
         <StatTile icon="🕒" tone="amber" label="Idle Time" value={fmtHMS(data?.totals.idleSec ?? 0)} />
         <StatTile icon="⚡" tone="gray" label="Offline Time" value={fmtHMS(data?.totals.offlineSec ?? 0)} info="Time the agent wasn't reporting (agent offline-duration tracking arrives in a later phase)." />
         <StatTile icon="◷" tone="indigo" label="Tracked Time" value={fmtHMS(data?.totals.trackedSec ?? 0)} info="Usage + Idle." />
-        {mode === "period" && <StatTile icon="＋" tone="rose" label="Overtime" value={fmtHMS(data?.totals.overtimeSec ?? 0)} info="Tracked beyond shift length. Requires shift config." />}
+        {mode === "period" && <StatTile icon="＋" tone="rose" label="Overtime" value={fmtHMS(data?.totals.overtimeSec ?? 0)} info="Worked time outside the rostered shift. Employees with no shift assigned are not counted." />}
       </div>
 
       {/* table */}
@@ -170,11 +170,11 @@ export function Timesheet() {
               {mode === "user" && <Th>Date</Th>}
               {mode === "period" ? (
                 <>
-                  <Th>Total Usage</Th><Th>Total Idle</Th><Th>Total Offline</Th><Th>Total Tracked</Th><Th>Total Overtime</Th><Th>Absent Days</Th>
+                  <Th>Shift</Th><Th>Total Usage</Th><Th>Total Idle</Th><Th>Total Offline</Th><Th>Total Tracked</Th><Th>Shift Time</Th><Th>Total Overtime</Th><Th>Absent Days</Th>
                 </>
               ) : (
                 <>
-                  <Th>First Activity</Th><Th>Last Activity</Th><Th>Usage</Th><Th>Idle</Th><Th>Offline</Th><Th>Tracked</Th>
+                  <Th>Shift</Th><Th>First Activity</Th><Th>Late By</Th><Th>Last Activity</Th><Th>Usage</Th><Th>Idle</Th><Th>Offline</Th><Th>Tracked</Th>
                 </>
               )}
               {cols.map((c) => <Th key={c}>{c}</Th>)}
@@ -191,16 +191,20 @@ export function Timesheet() {
                   {mode === "user" && <td className="px-5 py-3 text-gray-600">{r.date ? dayLabel(r.date) : "—"}</td>}
                   {mode === "period" ? (
                     <>
+                      <Td tone="text-gray-500">{r.shiftName ?? "—"}</Td>
                       <Td tone="text-green-600">{fmtHMS(r.usageSec)}</Td>
                       <Td tone="text-amber-600">{fmtHMS(r.idleSec)}</Td>
                       <Td tone="text-gray-500">{dash(r.offlineSec)}</Td>
                       <Td tone="text-brand">{fmtHMS(r.trackedSec)}</Td>
-                      <Td tone="text-gray-500">{fmtHMS(r.overtimeSec)}</Td>
+                      <Td tone="text-gray-600">{r.shiftName ? fmtHMS(r.shiftSec) : "—"}</Td>
+                      <Td tone="text-gray-500">{r.shiftName ? fmtHMS(r.overtimeSec) : "—"}</Td>
                       <Td tone={r.absentDays ? "text-rose-600" : "text-gray-400"}>{r.absentDays ?? "—"}</Td>
                     </>
                   ) : (
                     <>
+                      <Td tone="text-gray-500">{r.shiftName ?? "—"}</Td>
                       <Td>{r.firstActivity ? fmtTime(r.firstActivity) : "—"}</Td>
+                      <td className="px-5 py-3"><LateBadge sec={r.lateSec} /></td>
                       <Td>{r.lastActivity ? fmtTime(r.lastActivity) : "—"}</Td>
                       <Td tone="text-green-600">{dash(r.usageSec)}</Td>
                       <Td tone="text-amber-600">{dash(r.idleSec)}</Td>
@@ -225,6 +229,7 @@ export function Timesheet() {
                     <Td tone="text-amber-600">{fmtHMS(data.totals.idleSec)}</Td>
                     <Td tone="text-gray-500">{fmtHMS(data.totals.offlineSec)}</Td>
                     <Td tone="text-brand">{fmtHMS(data.totals.trackedSec)}</Td>
+                    <Td tone="text-gray-600">{fmtHMS(data.totals.shiftSec)}</Td>
                     <Td tone="text-gray-500">{fmtHMS(data.totals.overtimeSec)}</Td>
                     <td className="px-5 py-3 text-gray-400">—</td>
                   </>
@@ -321,5 +326,19 @@ function AbsenceModal({ rows, onClose }: { rows: TimesheetReport["rows"]; onClos
         <div className="mt-5 flex justify-end"><button onClick={onClose} className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">Close</button></div>
       </div>
     </div>
+  );
+}
+
+/** How late someone started against their roster. Green when early or on time,
+ *  amber past the grace period — a couple of minutes is not a story. */
+function LateBadge({ sec }: { sec: number | null }) {
+  if (sec === null) return <span className="text-gray-400">—</span>;
+  if (sec <= 120) return <span className="text-xs font-semibold text-green-600">On time</span>;
+  const mins = Math.round(sec / 60);
+  const label = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
+  return (
+    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${mins >= 30 ? "bg-rose-100 text-rose-600" : "bg-amber-100 text-amber-700"}`}>
+      +{label}
+    </span>
   );
 }

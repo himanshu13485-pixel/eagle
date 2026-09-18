@@ -38,6 +38,8 @@ export interface EmployeeDto {
   avatarUrl: string | null; // uploaded profile image (presigned), null = use initials
   teamId: string | null;
   teamName: string | null; // department
+  shiftId: string | null; // rostered shift, null = not rostered
+  shiftName: string | null;
   status: PresenceStatus;
   active: boolean; // false = deactivated (paused, data kept)
   lastActiveAt: string | null;
@@ -164,7 +166,14 @@ export interface TimesheetRow {
   idleSec: number;
   offlineSec: number;
   trackedSec: number;
+  /** Worked time inside the rostered shift, and outside it. Both 0 when the
+   *  employee has no shift assigned — check shiftName before showing them. */
+  shiftSec: number;
   overtimeSec: number;
+  shiftName: string | null;
+  /** Seconds after the rostered start that work began; negative = early,
+   *  null = no shift, or not a rostered day. */
+  lateSec: number | null;
   absentDays: number | null; // period-wise only
   breakdown: Record<string, number> | null; // app/website name -> usage seconds
 }
@@ -175,7 +184,7 @@ export interface TimesheetReport {
   to: string;
   caption: string; // "Day-wise report for 17 Aug 2026" etc.
   columns: string[]; // breakdown column names (apps/websites) to render
-  totals: { usageSec: number; idleSec: number; offlineSec: number; trackedSec: number; overtimeSec: number };
+  totals: { usageSec: number; idleSec: number; offlineSec: number; trackedSec: number; shiftSec: number; overtimeSec: number };
   rows: TimesheetRow[];
 }
 
