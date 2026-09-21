@@ -32,7 +32,18 @@ const outName = isWin ? "eagle-agent.exe" : "eagle-agent";
 const exe = join(dir, outName);
 console.log(`3/4  copying node → ${outName}…`);
 copyFileSync(process.execPath, exe);
-if (isMac) run(`codesign --remove-signature "${exe}"`); // postject invalidates the signature
+if (isMac) {
+  // The Node installer from nodejs.org is a universal (arm64 + x86_64) binary.
+  // Each slice carries its own copy of the SEA fuse, so postject finds the
+  // sentinel twice and refuses ("Multiple occurences of sentinel"). Thin it to
+  // this machine's architecture first. `ditto` ships with macOS itself —
+  // `lipo` would need the Xcode command-line tools, which a fresh Mac lacks.
+  // On an already single-arch node (e.g. the GitHub runner's) this is a copy.
+  const arch = process.arch === "arm64" ? "arm64" : "x86_64";
+  run(`ditto --arch ${arch} "${exe}" "${exe}.thin"`);
+  run(`mv -f "${exe}.thin" "${exe}"`);
+  run(`codesign --remove-signature "${exe}"`); // postject invalidates the signature
+}
 
 console.log("4/4  injecting SEA blob (postject)…");
 const seg = isMac ? " --macho-segment-name NODE_SEA" : "";
