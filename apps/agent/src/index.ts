@@ -7,8 +7,13 @@ import { connectLive } from "./live";
 import { buffer } from "./buffer";
 import { Control, type ControlCmd } from "./control";
 import { SiteBlocker } from "./blocker";
+import { AGENT_BUILD } from "./build-info";
+import { Updater, relaunchWindows, cleanupPreviousUpdate } from "./updater";
+import { UPDATE_PUBLIC_KEY } from "./update-key";
 
-const AGENT_VERSION = "0.1.0";
+// The build number rides along so the dashboard shows which PCs have picked up
+// an automatic update.
+const AGENT_VERSION = AGENT_BUILD ? `0.1.0+${AGENT_BUILD}` : "0.1.0";
 const TICK_MS = 5000;
 
 function osPlatform(): "WINDOWS" | "MAC" | "LINUX" {
@@ -247,6 +252,7 @@ class Agent {
 async function main() {
   const local = loadConfig();
   const api = new EagleApi(local.serverUrl, local.deviceToken);
+  api.agentVersion = AGENT_VERSION;
   setServerUrl(local.serverUrl); // used to fetch ffmpeg on demand when webcam is enabled
 
   async function enroll(reason: string): Promise<boolean> {
@@ -299,6 +305,21 @@ async function main() {
     connectLive(local.serverUrl, local.deviceToken, local.employeeId, () =>
       agent.captureNow().catch((e) => console.error("[capture-now]", e.message)),
     );
+  }
+
+  // Automatic updates — Windows only for now (see updater.ts on why not macOS),
+  // and only for a packaged build, never when running from source.
+  if (process.platform === "win32" && AGENT_BUILD > 0) {
+    await cleanupPreviousUpdate(process.execPath);
+    new Updater({
+      serverUrl: local.serverUrl,
+      os: "win",
+      currentBuild: AGENT_BUILD,
+      exePath: process.execPath,
+      publicKeyPem: UPDATE_PUBLIC_KEY,
+      relaunch: relaunchWindows,
+      exit: () => setTimeout(() => process.exit(0), 500),
+    }).start();
   }
 
   await agent.start();

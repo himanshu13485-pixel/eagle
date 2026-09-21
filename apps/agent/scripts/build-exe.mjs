@@ -11,9 +11,14 @@ const dir = "dist-bin";
 mkdirSync(dir, { recursive: true });
 const run = (cmd) => execSync(cmd, { stdio: "inherit" });
 
-console.log("1/4  bundling with esbuild…");
+// Build number = Unix seconds. The updater only moves to a higher build, so
+// this is what makes "newer" mean something (and blocks rollback replays).
+const build = Math.floor(Date.now() / 1000);
+
+console.log(`1/4  bundling with esbuild… (build ${build})`);
 run(
   `npx esbuild src/index.ts --bundle --platform=node --target=node20 --format=cjs ` +
+    `--define:__AGENT_BUILD__=${build} ` +
     `--outfile=${dir}/agent-bundle.cjs --external:bufferutil --external:utf-8-validate`,
 );
 
@@ -57,4 +62,9 @@ if (isMac) {
 }
 
 if (!existsSync(exe)) throw new Error(`${outName} was not produced`);
+// Read by scripts/sign.mjs so the signed manifest names the right build.
+writeFileSync(
+  join(dir, "build-info.json"),
+  JSON.stringify({ build, os: isWin ? "win" : isMac ? "mac" : "linux", file: outName }, null, 2),
+);
 console.log(`\n✓ Built ${exe} (${(statSync(exe).size / 1e6).toFixed(1)} MB)`);

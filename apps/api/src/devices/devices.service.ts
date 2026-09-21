@@ -69,7 +69,11 @@ export class DevicesService {
     const now = new Date();
     await this.prisma.device.update({
       where: { id: device.id },
-      data: { status: dto.status, lastSeenAt: now },
+      data: {
+        status: dto.status,
+        lastSeenAt: now,
+        ...(dto.agentVersion ? { agentVersion: dto.agentVersion.slice(0, 40) } : {}),
+      },
     });
     await this.prisma.employee.update({
       where: { id: device.employeeId },

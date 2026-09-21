@@ -31,6 +31,41 @@ Put a reverse proxy (Caddy/Nginx/Traefik) in front for TLS and host routing.
    `.bat` (Employees → Get installer) downloads from `AGENT_PUBLIC_URL/api/agent/binary`.
 3. `AGENT_PUBLIC_URL` must be reachable from every monitored PC (public domain or LAN IP).
 
+## Releasing an agent update
+
+**Windows agents update themselves.** Every few hours (spread out, so a fleet doesn't
+pull ~90 MB at once) each agent checks `/api/agent/update`; if a newer, correctly
+signed build is published it downloads it, verifies it, swaps itself and restarts.
+On a Windows PC run:
+
+```bash
+npm run build:exe -w @eagle/agent
+npm run sign -w @eagle/agent
+scp apps/agent/dist-bin/eagle-agent.exe apps/agent/dist-bin/eagle-agent.exe.manifest.json root@134.195.138.179:/home/eagle-app/data/agent/
+```
+
+Upload the `.exe` and its `.manifest.json` together. A mismatched pair is refused and
+the agents simply try again later; either upload order is safe.
+
+**The signing key** is `~/.workk-release/agent-signing.key` on the release PC
+(override with `WORKK_SIGNING_KEY`). It is what stops a compromised server from
+pushing code to every monitored PC, so:
+- **Back it up** (password manager / offline drive). Lose it and the next update has
+  to be a manual reinstall with a new key.
+- **Never** commit it or copy it to the server. The server only relays the manifest.
+- If it leaks: `npm run keygen` with the old file moved away, rebuild, and reinstall
+  every agent by hand — installed agents trust only the key they were built with.
+
+Agents never move to an older build, so replaying an old signed release does nothing.
+Each PC reports its build (`0.1.0+<build>`) on every heartbeat.
+
+**Macs are manual** — reinstall to update. With ad-hoc signing, macOS ties Screen
+Recording permission to the exact binary, so a silent update would stop screenshots
+until someone re-allows it. Revisit once the Mac agent has a Developer ID signature.
+
+**First rollout:** agents built before this existed have no updater, so each PC needs
+one last manual reinstall. After that, updates are automatic.
+
 ## Notes / remaining hardening
 
 - **Retention** runs daily at 03:00 (tier-based: Basic 15d, Pro 30d, Business 60d screenshots;

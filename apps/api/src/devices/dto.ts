@@ -26,4 +26,10 @@ export class HeartbeatDto {
   @IsOptional()
   @IsString()
   activeUrl?: string | null;
+
+  /** Running agent version. Sent on every heartbeat so an auto-updated PC
+   *  shows its new build without having to re-enroll. */
+  @IsOptional()
+  @IsString()
+  agentVersion?: string;
 }

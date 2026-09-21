@@ -1,6 +1,6 @@
 import { Controller, Get, NotFoundException, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
-import { existsSync } from "fs";
+import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { macUninstallerScript } from "./mac-uninstaller";
 
@@ -23,6 +23,20 @@ export class AgentDistController {
       process.env.AGENT_FFMPEG_PATH ||
       join(process.cwd(), "..", "agent", "dist-bin", "ffmpeg.exe")
     );
+  }
+
+  /**
+   * Signed release manifest for the auto-updater: build number, size and
+   * sha256 of the binary served by /binary, signed on the release machine.
+   * The server only relays it — it holds no key and can't mint a valid one,
+   * which is the point. 404 = nothing published, and agents just keep running.
+   */
+  @Get("update")
+  update(@Res() res: Response, @Query("os") os?: string) {
+    const path = `${this.exePath(os === "mac")}.manifest.json`;
+    if (!existsSync(path)) throw new NotFoundException("No signed release published.");
+    res.setHeader("Cache-Control", "no-store");
+    res.type("application/json").send(readFileSync(path, "utf8"));
   }
 
   @Get("binary")

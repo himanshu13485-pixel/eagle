@@ -22,6 +22,10 @@ export type Presence = "ACTIVE" | "IDLE" | "OFFLINE";
 export type Trigger = "PERIODIC" | "APP_SWITCH" | "WEBCAM" | "ON_DEMAND";
 
 export class EagleApi {
+  /** Reported on every heartbeat, so the dashboard reflects an auto-update
+   *  without waiting for a re-enrollment. */
+  agentVersion?: string;
+
   constructor(
     private readonly baseUrl: string,
     private deviceToken?: string,
@@ -58,7 +62,7 @@ export class EagleApi {
     const res = await fetch(`${this.baseUrl}/api/devices/heartbeat`, {
       method: "POST",
       headers: { "content-type": "application/json", ...this.authHeaders() },
-      body: JSON.stringify({ status, activeApp, activeUrl }),
+      body: JSON.stringify({ status, activeApp, activeUrl, agentVersion: this.agentVersion }),
     });
     if (!res.ok) throw new Error(`Heartbeat failed: ${res.status}`);
     return res.json() as any;

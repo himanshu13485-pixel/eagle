@@ -21,3 +21,7 @@ apps/agent/dist-bin/
 
 # production env (secrets)
 .env.workk
+
+# agent release-signing key (lives in ~/.workk-release, never in the repo)
+*.key
+.workk-release/
