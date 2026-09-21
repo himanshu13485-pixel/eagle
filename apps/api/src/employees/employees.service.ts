@@ -3,6 +3,7 @@ import { randomBytes } from "crypto";
 import { existsSync, statSync } from "fs";
 import { join } from "path";
 import { PrismaService } from "../prisma/prisma.service";
+import { macUninstallerScript } from "../agent-dist/mac-uninstaller";
 import { StorageService } from "../storage/storage.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { planLimits, PresenceStatus, type EmployeeDto } from "@eagle/shared";
@@ -494,11 +495,14 @@ export class EmployeesService {
   }
 
   /** Self-elevating uninstaller that fully removes the agent from a monitored PC. */
-  async buildUninstaller(orgId: string, employeeId: string) {
+  async buildUninstaller(orgId: string, employeeId: string, os: "win" | "mac" = "win") {
     const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, orgId } });
     if (!employee) throw new NotFoundException("Employee not found");
     const safe = employee.name.replace(/[^a-z0-9]+/gi, "_");
     const server = process.env.AGENT_PUBLIC_URL || `http://localhost:${process.env.API_PORT || 4000}`;
+    if (os === "mac") {
+      return { filename: `Workk_${safe}_Uninstaller.command`, content: macUninstallerScript(server) };
+    }
     const bat = [
       "@echo off",
       "net session >nul 2>&1",

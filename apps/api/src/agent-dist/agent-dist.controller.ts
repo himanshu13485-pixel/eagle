@@ -2,6 +2,7 @@ import { Controller, Get, NotFoundException, Query, Res } from "@nestjs/common";
 import type { Response } from "express";
 import { existsSync } from "fs";
 import { join } from "path";
+import { macUninstallerScript } from "./mac-uninstaller";
 
 /**
  * Public download of the compiled agent binary. The generated .bat fetches this
@@ -61,8 +62,14 @@ export class AgentDistController {
    * required here either. It self-elevates to admin to undo the install.
    */
   @Get("uninstaller")
-  uninstaller(@Res() res: Response) {
+  uninstaller(@Res() res: Response, @Query("os") os?: string) {
     const server = process.env.AGENT_PUBLIC_URL || `http://localhost:${process.env.API_PORT || 4000}`;
+    if (os === "mac") {
+      res.setHeader("Content-Type", "application/octet-stream");
+      res.setHeader("Content-Disposition", 'attachment; filename="Workk_Uninstaller.command"');
+      res.send(macUninstallerScript(server));
+      return;
+    }
     const bat = [
       "@echo off",
       "net session >nul 2>&1",

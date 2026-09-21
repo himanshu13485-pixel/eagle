@@ -107,8 +107,8 @@ export class EmployeesController {
   }
 
   @Post("employees/:id/uninstaller")
-  uninstaller(@CurrentUser() user: RequestUser, @Param("id") id: string) {
-    return this.employees.buildUninstaller(user.orgId, id);
+  uninstaller(@CurrentUser() user: RequestUser, @Param("id") id: string, @Query("os") os?: string) {
+    return this.employees.buildUninstaller(user.orgId, id, os === "mac" ? "mac" : "win");
   }
 
   @Post("employees/:id/deactivate")

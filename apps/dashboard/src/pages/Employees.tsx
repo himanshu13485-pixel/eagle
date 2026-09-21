@@ -123,9 +123,9 @@ export function Employees() {
     catch (err: any) { let m = "Couldn't update."; try { m = JSON.parse(err.message).message || m; } catch { /* keep */ } setToast(Array.isArray(m) ? m[0] : m); }
     finally { setBusy(null); }
   }
-  async function getUninstaller(e: EmployeeDto) {
+  async function getUninstaller(e: EmployeeDto, os: "win" | "mac") {
     setBusy(e.id);
-    try { const res = await api<{ filename: string; content: string }>(`/employees/${e.id}/uninstaller`, { method: "POST" }); downloadFile(res.filename, res.content); }
+    try { const res = await api<{ filename: string; content: string }>(`/employees/${e.id}/uninstaller?os=${os}`, { method: "POST" }); downloadFile(res.filename, res.content); }
     finally { setBusy(null); }
   }
   async function removeEmployee(e: EmployeeDto) {
@@ -225,7 +225,12 @@ export function Employees() {
               <MenuItem icon="doc" label="Timesheet" onClick={() => { close(); nav("/reports/timesheet"); }} />
               <MenuItem icon="gear" label="Settings" onClick={() => { close(); setSettingsFor(e); }} />
               <MenuItem icon="info" label="Agent info" onClick={() => { close(); setInfoFor(e); }} />
-              <MenuItem icon="download" label="Uninstaller" onClick={() => { close(); getUninstaller(e); }} />
+              {/* Offer the uninstaller for the machine this person actually enrolled
+                  from, listed first; the other stays available for a device that
+                  never enrolled or was swapped. */}
+              {(e.agent?.platform === "MAC" ? (["mac", "win"] as const) : (["win", "mac"] as const)).map((os) => (
+                <MenuItem key={os} icon="download" label={`Uninstaller (${os === "mac" ? "Mac" : "Windows"})`} onClick={() => { close(); getUninstaller(e, os); }} />
+              ))}
               <div className="my-1 border-t border-gray-100" />
               <MenuItem icon="trash" label="Delete" tone="text-red-500" onClick={() => { close(); removeEmployee(e); }} />
             </div>
