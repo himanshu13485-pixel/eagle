@@ -66,6 +66,9 @@ services:
 
       # Agent installer binary (see DEPLOY.md "The agent binary in production").
       AGENT_EXE_PATH: ${AGENT_EXE_PATH:-/data/agent/eagle-agent.exe}
+      # The macOS build (Mach-O, no extension). Without this the API looked
+      # inside the image, where it never exists, so every Mac install 404'd.
+      AGENT_EXE_MAC_PATH: ${AGENT_EXE_MAC_PATH:-/data/agent/eagle-agent}
       # Webcam snapshots need ffmpeg, which agents fetch from /api/agent/ffmpeg.
       # Without this the API looked inside the image at a path that only exists
       # in a source checkout, so the download 404'd and webcam silently did
