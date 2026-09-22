@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import type { EmployeeDto, Paginated, ScreenshotDto } from "@eagle/shared";
 import { PageHeader } from "../components/Layout";
 import { api, API_URL, getToken } from "../lib/api";
+import { guardWebcamToggle } from "../lib/confirmWebcam";
 import { useAuth } from "../lib/auth";
 import { useLiveFrames } from "../lib/live";
 import { getSocket } from "../lib/socket";
@@ -330,7 +331,7 @@ function SettingsModal({ employee, onClose, onSaved }: { employee: EmployeeDto; 
             <div className="space-y-3">
               <ModeCard icon="🕒" title="Periodic screenshots" desc="Automatically captures at a fixed interval." on={s.periodicScreenshots} onChange={(v) => patch({ periodicScreenshots: v })} />
               <ModeCard icon="🔀" title="Switched app screenshots" desc="Captures when the user switches applications." on={s.appSwitchScreenshots} onChange={(v) => patch({ appSwitchScreenshots: v })} />
-              <ModeCard icon="📷" title="Webcam photos" desc="Optional webcam snapshots (Windows, opt-in)." on={s.webcamPhotos} onChange={(v) => patch({ webcamPhotos: v })} />
+              <ModeCard icon="📷" title="Webcam photos" desc="Optional webcam snapshots (Windows, opt-in)." on={s.webcamPhotos} onChange={guardWebcamToggle("this employee", (v) => patch({ webcamPhotos: v }))} />
             </div>
           </div>
           <div className="rounded-2xl border border-gray-100 p-5">

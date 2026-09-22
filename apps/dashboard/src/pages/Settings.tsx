@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { ActivityCategory, TrackingMode, UsageType, type EmployeeDto, type TeamSnapshotReport } from "@eagle/shared";
 import { PageHeader } from "../components/Layout";
 import { api } from "../lib/api";
+import { guardWebcamToggle } from "../lib/confirmWebcam";
 
 interface TrackingSettings {
   periodicScreenshots: boolean;
@@ -297,7 +298,7 @@ function ScreenshotTab() {
         <Card title="Screenshot Modes" desc="Choose how Workk captures screen activity.">
           <Row title="Periodic Screenshots" desc="Captures at a fixed interval."><Toggle on={s.periodicScreenshots} onChange={(v) => patch({ periodicScreenshots: v })} /></Row>
           <Row title="Switched App Screenshots" desc="Captures on app switch."><Toggle on={s.appSwitchScreenshots} onChange={(v) => patch({ appSwitchScreenshots: v })} /></Row>
-          <Row title="Webcam Photos" desc="Optional webcam snapshots (opt-in)."><Toggle on={s.webcamPhotos} onChange={(v) => patch({ webcamPhotos: v })} /></Row>
+          <Row title="Webcam Photos" desc="Optional webcam snapshots (opt-in). Turns on the camera on every PC in the org."><Toggle on={s.webcamPhotos} onChange={guardWebcamToggle("everyone in your organisation", (v) => patch({ webcamPhotos: v }))} /></Row>
         </Card>
         <Card title="Interval Settings" desc="Capture frequency and idle timeout.">
           <Field label="Screenshot interval"><Stepper value={s.screenshotIntervalMin} onChange={(v) => patch({ screenshotIntervalMin: v })} min={1} max={60} /></Field>
@@ -824,7 +825,10 @@ function RosterPanel({ shifts }: { shifts: Shift[] }) {
 function BulkTab() {
   const [employees, setEmployees] = useState<EmployeeDto[]>([]);
   const [sel, setSel] = useState<Set<string>>(new Set());
-  const [cfg, setCfg] = useState({ periodicScreenshots: true, screenshotIntervalMin: 10, appSwitchScreenshots: true, idleAfterMin: 5, trackingMode: TrackingMode.VISIBLE });
+  // webcamPhotos is part of the applied profile now, so Bulk Update can force it
+  // OFF for a selection (it lands as a per-employee override that beats the org
+  // setting). Defaults off, and turning it on is gated like everywhere else.
+  const [cfg, setCfg] = useState({ periodicScreenshots: true, screenshotIntervalMin: 10, appSwitchScreenshots: true, webcamPhotos: false, idleAfterMin: 5, trackingMode: TrackingMode.VISIBLE });
   const [msg, setMsg] = useState("");
   useEffect(() => { api<EmployeeDto[]>("/employees").then(setEmployees).catch(() => {}); }, []);
   const toggle = (id: string) => setSel((c) => { const n = new Set(c); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -851,6 +855,7 @@ function BulkTab() {
         <div className="space-y-4">
           <Row title="Periodic Screenshots" desc="Captures at a fixed interval."><Toggle on={cfg.periodicScreenshots} onChange={(v) => setCfg({ ...cfg, periodicScreenshots: v })} /></Row>
           <Row title="App-switch Screenshots" desc="Capture on app switch."><Toggle on={cfg.appSwitchScreenshots} onChange={(v) => setCfg({ ...cfg, appSwitchScreenshots: v })} /></Row>
+          <Row title="Webcam Photos" desc="Snapshots from the camera. Applies to the selected people, overriding the org setting."><Toggle on={cfg.webcamPhotos} onChange={guardWebcamToggle("the selected employees", (v) => setCfg({ ...cfg, webcamPhotos: v }))} /></Row>
           <Field label="Screenshot interval"><Stepper value={cfg.screenshotIntervalMin} onChange={(v) => setCfg({ ...cfg, screenshotIntervalMin: v })} min={1} max={60} /></Field>
           <Field label="Mark idle after"><Stepper value={cfg.idleAfterMin} onChange={(v) => setCfg({ ...cfg, idleAfterMin: v })} min={1} max={60} /></Field>
           <Row title="Silent / Hidden Mode" desc="Background, no tray, no manual stop."><Toggle on={cfg.trackingMode === TrackingMode.RESTRICTED} onChange={(v) => setCfg({ ...cfg, trackingMode: v ? TrackingMode.RESTRICTED : TrackingMode.VISIBLE })} /></Row>
