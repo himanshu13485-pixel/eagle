@@ -103,12 +103,12 @@ export class EmployeesController {
 
   @Post("employees/:id/installer")
   installer(@CurrentUser() user: RequestUser, @Param("id") id: string, @Query("os") os?: string) {
-    return this.employees.buildInstaller(user.orgId, id, os === "mac" ? "mac" : "win");
+    return this.employees.buildInstaller(user.orgId, id, os === "mac" ? "mac" : os === "linux" ? "linux" : "win");
   }
 
   @Post("employees/:id/uninstaller")
   uninstaller(@CurrentUser() user: RequestUser, @Param("id") id: string, @Query("os") os?: string) {
-    return this.employees.buildUninstaller(user.orgId, id, os === "mac" ? "mac" : "win");
+    return this.employees.buildUninstaller(user.orgId, id, os === "mac" ? "mac" : os === "linux" ? "linux" : "win");
   }
 
   @Post("employees/:id/deactivate")

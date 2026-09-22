@@ -7,6 +7,7 @@
  */
 import { execFile } from "child_process";
 import { promisify } from "util";
+import { foregroundLinux, idleLinux } from "./linux";
 
 const pexec = promisify(execFile);
 
@@ -111,6 +112,10 @@ export async function getForeground(): Promise<ForegroundInfo> {
       return { app: null, title: null, url: null };
     }
   }
+  if (process.platform === "linux") {
+    const fg = await foregroundLinux();
+    return { app: fg.app, title: fg.title, url: hostFromTitle(fg.app, fg.title) };
+  }
   if (process.platform !== "win32") return { app: null, title: null, url: null };
   try {
     const out = await runPs(PS_FOREGROUND);
@@ -139,6 +144,7 @@ export async function getIdleSeconds(): Promise<number> {
       return 0;
     }
   }
+  if (process.platform === "linux") return idleLinux();
   if (process.platform !== "win32") return 0;
   try {
     const sec = Number(await runPs(PS_IDLE)); // C# already returns seconds

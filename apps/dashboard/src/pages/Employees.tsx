@@ -64,7 +64,20 @@ function Stepper({ value, onChange, min = 1, max = 60 }: { value: number; onChan
   );
 }
 
-interface Installer { id: string; name: string; os: "win" | "mac"; filename: string; content: string; enrollToken: string; server: string }
+type AgentOs = "win" | "mac" | "linux";
+const OS_LABEL: Record<AgentOs, string> = { win: "Windows", mac: "macOS", linux: "Linux" };
+const OS_ICON: Record<AgentOs, string> = { win: "🪟", mac: "🍎", linux: "🐧" };
+const INSTALL_HELP: Record<AgentOs, string> = {
+  win: "Run the .bat as administrator on the Windows PC — it installs hidden, auto-starts, adds the Defender exclusion, and enrolls.",
+  mac: "Run the .command on the Mac (in Terminal: bash <the file> if macOS blocks it). Installs via launchd + enrolls. Grant Screen Recording afterward.",
+  linux: "Run the .sh on the Linux PC: bash <the file>. Installs screenshot/idle helpers, sets up a systemd user service, and enrolls. X11 works fully; Wayland captures with grim.",
+};
+/** Offer the enrolled platform first, then the rest. */
+function osOrder(platform?: string | null): AgentOs[] {
+  const first: AgentOs = platform === "MAC" ? "mac" : platform === "LINUX" ? "linux" : "win";
+  return [first, ...(["win", "mac", "linux"] as AgentOs[]).filter((o) => o !== first)];
+}
+interface Installer { id: string; name: string; os: AgentOs; filename: string; content: string; enrollToken: string; server: string }
 interface EmpSettings { periodicScreenshots: boolean; screenshotIntervalMin: number; appSwitchScreenshots: boolean; appSwitchDelayMin: number; webcamPhotos: boolean; idleAfterMin: number; trackingMode: string; strictTimeTracking: boolean }
 
 const FILTERS = ["ALL", "ACTIVE", "IDLE", "OFFLINE", "INVITED", "INACTIVE"] as const;
@@ -113,7 +126,7 @@ export function Employees() {
     const url = URL.createObjectURL(new Blob([content], { type: "application/octet-stream" }));
     const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
   }
-  async function getInstaller(id: string, name: string, os: "win" | "mac" = "win") {
+  async function getInstaller(id: string, name: string, os: AgentOs = "win") {
     setBusy(id);
     try { const res = await api<Omit<Installer, "id" | "name" | "os">>(`/employees/${id}/installer?os=${os}`, { method: "POST" }); setInst({ id, name, os, ...res }); }
     finally { setBusy(null); }
@@ -124,7 +137,7 @@ export function Employees() {
     catch (err: any) { let m = "Couldn't update."; try { m = JSON.parse(err.message).message || m; } catch { /* keep */ } setToast(Array.isArray(m) ? m[0] : m); }
     finally { setBusy(null); }
   }
-  async function getUninstaller(e: EmployeeDto, os: "win" | "mac") {
+  async function getUninstaller(e: EmployeeDto, os: AgentOs) {
     setBusy(e.id);
     try { const res = await api<{ filename: string; content: string }>(`/employees/${e.id}/uninstaller?os=${os}`, { method: "POST" }); downloadFile(res.filename, res.content); }
     finally { setBusy(null); }
@@ -229,8 +242,8 @@ export function Employees() {
               {/* Offer the uninstaller for the machine this person actually enrolled
                   from, listed first; the other stays available for a device that
                   never enrolled or was swapped. */}
-              {(e.agent?.platform === "MAC" ? (["mac", "win"] as const) : (["win", "mac"] as const)).map((os) => (
-                <MenuItem key={os} icon="download" label={`Uninstaller (${os === "mac" ? "Mac" : "Windows"})`} onClick={() => { close(); getUninstaller(e, os); }} />
+              {osOrder(e.agent?.platform).map((os) => (
+                <MenuItem key={os} icon="download" label={`Uninstaller (${OS_LABEL[os]})`} onClick={() => { close(); getUninstaller(e, os); }} />
               ))}
               <div className="my-1 border-t border-gray-100" />
               <MenuItem icon="trash" label="Delete" tone="text-red-500" onClick={() => { close(); removeEmployee(e); }} />
@@ -255,16 +268,16 @@ function Shell({ children, onClose, maxW = "max-w-lg" }: { children: ReactNode; 
   );
 }
 
-function InstallerModal({ inst, onOs, busy, onDownload, onClose }: { inst: Installer; onOs: (os: "win" | "mac") => void; busy: boolean; onDownload: () => void; onClose: () => void }) {
+function InstallerModal({ inst, onOs, busy, onDownload, onClose }: { inst: Installer; onOs: (os: AgentOs) => void; busy: boolean; onDownload: () => void; onClose: () => void }) {
   return (
     <Shell onClose={onClose}>
       <h3 className="text-lg font-bold text-gray-900">Install the agent for {inst.name}</h3>
       <div className="mt-3 flex gap-2">
-        {(["win", "mac"] as const).map((o) => (
-          <button key={o} onClick={() => onOs(o)} disabled={busy} className={`rounded-lg px-4 py-2 text-sm font-semibold ${inst.os === o ? "bg-brand text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>{o === "win" ? "🪟 Windows" : "🍎 macOS"}</button>
+        {(["win", "mac", "linux"] as const).map((o) => (
+          <button key={o} onClick={() => onOs(o)} disabled={busy} className={`rounded-lg px-4 py-2 text-sm font-semibold ${inst.os === o ? "bg-brand text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>{OS_ICON[o]} {OS_LABEL[o]}</button>
         ))}
       </div>
-      <p className="mt-3 text-sm text-gray-500">{inst.os === "win" ? "Run the .bat as administrator on the Windows PC — it installs hidden, auto-starts, adds the Defender exclusion, and enrolls." : "Run the .command on the Mac (right-click → Open first time). Installs via launchd + enrolls. Grant Screen Recording afterward."}</p>
+      <p className="mt-3 text-sm text-gray-500">{INSTALL_HELP[inst.os]}</p>
       <button onClick={onDownload} className="mt-4 w-full rounded-xl bg-brand px-4 py-3 text-sm font-bold text-white hover:bg-brand-dark">⬇ Download installer ({inst.filename})</button>
       {inst.server.includes("localhost") && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">Points at <code>{inst.server}</code>. For another machine set <code>AGENT_PUBLIC_URL</code> to the LAN IP/hostname (or public domain).</p>}
       <div className="mt-5 flex justify-end"><button onClick={onClose} className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">Done</button></div>

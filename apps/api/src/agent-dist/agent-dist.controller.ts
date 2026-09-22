@@ -3,6 +3,7 @@ import type { Response } from "express";
 import { existsSync, readFileSync } from "fs";
 import { join } from "path";
 import { macUninstallerScript } from "./mac-uninstaller";
+import { linuxUninstallerScript } from "./linux-scripts";
 
 /**
  * Public download of the compiled agent binary. The generated .bat fetches this
@@ -11,11 +12,17 @@ import { macUninstallerScript } from "./mac-uninstaller";
  */
 @Controller("agent")
 export class AgentDistController {
-  private exePath(mac = false): string {
-    if (mac) {
-      return process.env.AGENT_EXE_MAC_PATH || join(process.cwd(), "..", "agent", "dist-bin", "eagle-agent");
-    }
-    return process.env.AGENT_EXE_PATH || join(process.cwd(), "..", "agent", "dist-bin", "eagle-agent.exe");
+  private exePath(os: "win" | "mac" | "linux" = "win"): string {
+    const dist = join(process.cwd(), "..", "agent", "dist-bin");
+    if (os === "mac") return process.env.AGENT_EXE_MAC_PATH || join(dist, "eagle-agent");
+    // The Linux binary is an ELF with the same base name as the Mac one, so it
+    // needs its own env var / path to avoid colliding with it.
+    if (os === "linux") return process.env.AGENT_EXE_LINUX_PATH || join(dist, "eagle-agent-linux");
+    return process.env.AGENT_EXE_PATH || join(dist, "eagle-agent.exe");
+  }
+
+  private osOf(q?: string): "win" | "mac" | "linux" {
+    return q === "mac" ? "mac" : q === "linux" ? "linux" : "win";
   }
 
   private ffmpegPath(): string {
@@ -33,7 +40,7 @@ export class AgentDistController {
    */
   @Get("update")
   update(@Res() res: Response, @Query("os") os?: string) {
-    const path = `${this.exePath(os === "mac")}.manifest.json`;
+    const path = `${this.exePath(this.osOf(os))}.manifest.json`;
     if (!existsSync(path)) throw new NotFoundException("No signed release published.");
     res.setHeader("Cache-Control", "no-store");
     res.type("application/json").send(readFileSync(path, "utf8"));
@@ -41,16 +48,17 @@ export class AgentDistController {
 
   @Get("binary")
   binary(@Res() res: Response, @Query("os") os?: string) {
-    const mac = os === "mac";
-    const path = this.exePath(mac);
+    const target = this.osOf(os);
+    const path = this.exePath(target);
     if (!existsSync(path)) {
       throw new NotFoundException(
-        mac
-          ? "Mac agent not built yet. Build it on macOS/CI (`npm run build:exe -w @eagle/agent`) and place it at apps/agent/dist-bin/eagle-agent."
-          : "Agent binary not built yet. Run `npm run build:exe -w @eagle/agent`.",
+        target === "win"
+          ? "Windows agent not built yet. Run `npm run build:exe -w @eagle/agent`."
+          : `${target === "mac" ? "Mac" : "Linux"} agent not built yet. Build it on ${target === "mac" ? "macOS" : "Linux"}/CI (\`npm run build:exe -w @eagle/agent\`) and place it on the server.`,
       );
     }
-    res.download(path, mac ? "eagle-agent" : "eagle-agent.exe");
+    const name = target === "win" ? "eagle-agent.exe" : "eagle-agent";
+    res.download(path, name);
   }
 
   /** Webcam capture uses ffmpeg; the agent fetches it on demand only when the
@@ -82,6 +90,12 @@ export class AgentDistController {
       res.setHeader("Content-Type", "application/octet-stream");
       res.setHeader("Content-Disposition", 'attachment; filename="Workk_Uninstaller.command"');
       res.send(macUninstallerScript(server));
+      return;
+    }
+    if (os === "linux") {
+      res.setHeader("Content-Type", "application/octet-stream");
+      res.setHeader("Content-Disposition", 'attachment; filename="Workk_Uninstaller.sh"');
+      res.send(linuxUninstallerScript(server));
       return;
     }
     const bat = [

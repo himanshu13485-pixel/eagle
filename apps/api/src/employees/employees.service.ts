@@ -4,6 +4,7 @@ import { existsSync, statSync } from "fs";
 import { join } from "path";
 import { PrismaService } from "../prisma/prisma.service";
 import { macUninstallerScript } from "../agent-dist/mac-uninstaller";
+import { linuxInstallerScript, linuxUninstallerScript } from "../agent-dist/linux-scripts";
 import { StorageService } from "../storage/storage.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import { planLimits, PresenceStatus, type EmployeeDto } from "@eagle/shared";
@@ -265,7 +266,7 @@ export class EmployeesService {
 
   /** Builds a personalized installer (Windows .bat or macOS .command) that downloads
    *  the agent, sets it to auto-start, and enrolls it with a one-time token. */
-  async buildInstaller(orgId: string, employeeId: string, os: "win" | "mac" = "win") {
+  async buildInstaller(orgId: string, employeeId: string, os: "win" | "mac" | "linux" = "win") {
     const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, orgId } });
     if (!employee) throw new NotFoundException("Employee not found");
     const { enrollToken } = await this.createEnrollToken(orgId, employeeId);
@@ -281,6 +282,15 @@ export class EmployeesService {
     const winExePath =
       process.env.AGENT_EXE_PATH || join(process.cwd(), "..", "agent", "dist-bin", "eagle-agent.exe");
     const expectedSize = existsSync(winExePath) ? statSync(winExePath).size : 0;
+
+    if (os === "linux") {
+      return {
+        filename: `Workk_${safe}_Installer.sh`,
+        content: linuxInstallerScript(server, enrollToken, employee.name),
+        enrollToken,
+        server,
+      };
+    }
 
     if (os === "mac") {
       const sh = [
@@ -495,11 +505,14 @@ export class EmployeesService {
   }
 
   /** Self-elevating uninstaller that fully removes the agent from a monitored PC. */
-  async buildUninstaller(orgId: string, employeeId: string, os: "win" | "mac" = "win") {
+  async buildUninstaller(orgId: string, employeeId: string, os: "win" | "mac" | "linux" = "win") {
     const employee = await this.prisma.employee.findFirst({ where: { id: employeeId, orgId } });
     if (!employee) throw new NotFoundException("Employee not found");
     const safe = employee.name.replace(/[^a-z0-9]+/gi, "_");
     const server = process.env.AGENT_PUBLIC_URL || `http://localhost:${process.env.API_PORT || 4000}`;
+    if (os === "linux") {
+      return { filename: `Workk_${safe}_Uninstaller.sh`, content: linuxUninstallerScript(server) };
+    }
     if (os === "mac") {
       return { filename: `Workk_${safe}_Uninstaller.command`, content: macUninstallerScript(server) };
     }

@@ -59,6 +59,21 @@ pushing code to every monitored PC, so:
 Agents never move to an older build, so replaying an old signed release does nothing.
 Each PC reports its build (`0.1.0+<build>`) on every heartbeat.
 
+**Linux agents** (X11 fully; Wayland captures with `grim`, no active-app/idle):
+build on a Linux box (or the Ubuntu CI runner), then place the ELF at the
+server's `AGENT_EXE_LINUX_PATH` (default `/data/agent/eagle-agent-linux`, kept
+distinct from the Mac binary of the same name):
+
+```bash
+npm run build:exe -w @eagle/agent    # on Linux → dist-bin/eagle-agent
+scp apps/agent/dist-bin/eagle-agent root@134.195.138.179:/home/eagle-app/data/agent/eagle-agent-linux
+```
+
+The Linux installer (Employees → installer → Linux) installs the screenshot/idle
+helpers (imagemagick, scrot, xdotool, xprintidle, grim) via the machine's package
+manager, sets up a systemd `--user` service, and enrolls. Like Mac, Linux does
+not auto-update yet — reinstall to upgrade.
+
 **Macs are manual** — reinstall to update. With ad-hoc signing, macOS ties Screen
 Recording permission to the exact binary, so a silent update would stop screenshots
 until someone re-allows it. Revisit once the Mac agent has a Developer ID signature.

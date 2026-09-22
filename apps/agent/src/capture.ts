@@ -4,6 +4,7 @@ import { readFile, unlink, mkdir, writeFile } from "fs/promises";
 import { existsSync } from "fs";
 import { tmpdir, homedir } from "os";
 import { join } from "path";
+import { captureLinux } from "./linux";
 
 const pexec = promisify(execFile);
 
@@ -74,6 +75,9 @@ async function captureScreen(opts: CaptureOpts = {}): Promise<Buffer> {
     const buf = await readFile(out);
     unlink(out).catch(() => {});
     return buf;
+  }
+  if (process.platform === "linux") {
+    return captureLinux(maxHeight, quality);
   }
   await ensureScript();
   await pexec(
@@ -208,8 +212,8 @@ const WEBCAM_MAX_FAILURES = 3;
 
 /** Screenshot, with the webcam snapshot overlaid in the corner when enabled. */
 export async function captureJpeg(withWebcam = false, maxHeight = 1080): Promise<Buffer> {
-  if (process.platform !== "win32" && process.platform !== "darwin") {
-    throw new Error("Screen capture is implemented for Windows and macOS only");
+  if (process.platform !== "win32" && process.platform !== "darwin" && process.platform !== "linux") {
+    throw new Error("Screen capture is implemented for Windows, macOS and Linux only");
   }
   const screen = await captureScreen({ maxHeight });
   // Webcam overlay is Windows-only for now (macOS uses a different capture path).

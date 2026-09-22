@@ -69,6 +69,9 @@ services:
       # The macOS build (Mach-O, no extension). Without this the API looked
       # inside the image, where it never exists, so every Mac install 404'd.
       AGENT_EXE_MAC_PATH: ${AGENT_EXE_MAC_PATH:-/data/agent/eagle-agent}
+      # The Linux build (ELF, also literally "eagle-agent" — kept under a distinct
+      # name so it doesn't collide with the Mac binary in the same folder).
+      AGENT_EXE_LINUX_PATH: ${AGENT_EXE_LINUX_PATH:-/data/agent/eagle-agent-linux}
       # Webcam snapshots need ffmpeg, which agents fetch from /api/agent/ffmpeg.
       # Without this the API looked inside the image at a path that only exists
       # in a source checkout, so the download 404'd and webcam silently did
