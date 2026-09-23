@@ -10,15 +10,10 @@
  */
 import { PrismaClient } from "@prisma/client";
 import * as bcrypt from "bcryptjs";
-import { deflateSync } from "zlib";
-import { mkdir, writeFile, rm } from "fs/promises";
+import { mkdir, writeFile, rm, readFile } from "fs/promises";
+import { existsSync } from "fs";
 import { dirname, join } from "path";
-import {
-  ActivityCategory as Cat,
-  DEFAULT_CATEGORY_RULES,
-  classifyActivity,
-  type CategoryRule,
-} from "@eagle/shared";
+import { ActivityCategory as Cat, type CategoryRule } from "@eagle/shared";
 
 const prisma = new PrismaClient();
 
@@ -43,73 +38,26 @@ const SCREENSHOT_INTERVAL_MIN = 10; // matches TrackingSetting's default screens
 const HISTORY_WORKDAYS = 7; // full past working days to backfill, before "today"
 
 // ============================================================================
-// Tiny dependency-free PNG encoder — placeholder screenshot images.
-// A seed script has no business pulling in a screenshot/canvas library; a flat
-// PNG built from Node's built-in zlib is enough for a demo gallery to render
-// real thumbnails instead of broken-image icons.
+// Fake app-window screenshots — pre-rendered once by
+// prisma/demo-assets/generate-screenshots.ts (Playwright screenshots of hand-
+// built HTML mockups of VS Code, Gmail, Figma, Slack, YouTube, Tally, etc.),
+// one PNG per app/site name in the catalog below. Loaded and cached here so
+// every capture of "Slack" reuses the same bytes rather than re-reading disk.
 // ============================================================================
-function crc32(buf: Buffer): number {
-  const table = crc32Table();
-  let crc = 0xffffffff;
-  for (let i = 0; i < buf.length; i++) crc = table[(crc ^ buf[i]) & 0xff] ^ (crc >>> 8);
-  return (crc ^ 0xffffffff) >>> 0;
-}
-let _crc32Table: Uint32Array | null = null;
-function crc32Table(): Uint32Array {
-  if (_crc32Table) return _crc32Table;
-  const t = new Uint32Array(256);
-  for (let n = 0; n < 256; n++) {
-    let c = n;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    t[n] = c >>> 0;
-  }
-  _crc32Table = t;
-  return t;
-}
-function pngChunk(type: string, data: Buffer): Buffer {
-  const len = Buffer.alloc(4);
-  len.writeUInt32BE(data.length, 0);
-  const typeBuf = Buffer.from(type, "ascii");
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])), 0);
-  return Buffer.concat([len, typeBuf, data, crc]);
-}
-function solidColorPng(width: number, height: number, [r, g, b]: [number, number, number]): Buffer {
-  const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(width, 0);
-  ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 8; // bit depth
-  ihdr[9] = 2; // color type: RGB
-  const rowLen = width * 3;
-  const raw = Buffer.alloc((rowLen + 1) * height);
-  for (let y = 0; y < height; y++) {
-    const rowStart = y * (rowLen + 1); // leading byte per row is the PNG filter type (0 = none)
-    for (let x = 0; x < width; x++) {
-      const off = rowStart + 1 + x * 3;
-      raw[off] = r;
-      raw[off + 1] = g;
-      raw[off + 2] = b;
-    }
-  }
-  return Buffer.concat([
-    sig,
-    pngChunk("IHDR", ihdr),
-    pngChunk("IDAT", deflateSync(raw)),
-    pngChunk("IEND", Buffer.alloc(0)),
-  ]);
-}
-const PLACEHOLDER_COLOR: Record<string, [number, number, number]> = {
-  PRODUCTIVE: [43, 108, 176], // blue — editor/doc-like
-  UNPRODUCTIVE: [197, 90, 65], // warm red — off-task
-  NEUTRAL: [113, 122, 138], // gray — browser/explorer
-};
-const _pngCache = new Map<string, Buffer>();
-function placeholderImage(category: string): Buffer {
-  const hit = _pngCache.get(category);
+const MOCKUP_DIR = join(__dirname, "demo-assets", "screenshots");
+const slugify = (key: string): string => key.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+const _mockupCache = new Map<string, Buffer>();
+async function mockupImage(appOrSiteName: string): Promise<Buffer> {
+  const hit = _mockupCache.get(appOrSiteName);
   if (hit) return hit;
-  const png = solidColorPng(960, 540, PLACEHOLDER_COLOR[category] ?? PLACEHOLDER_COLOR.NEUTRAL);
-  _pngCache.set(category, png);
+  const file = join(MOCKUP_DIR, `${slugify(appOrSiteName)}.png`);
+  if (!existsSync(file)) {
+    throw new Error(
+      `No mockup screenshot for "${appOrSiteName}" at ${file}. Run "npm run demo:screenshots" first, or add it to the SHOTS catalog in generate-screenshots.ts.`,
+    );
+  }
+  const png = await readFile(file);
+  _mockupCache.set(appOrSiteName, png);
   return png;
 }
 
@@ -171,7 +119,7 @@ const chance = (p: number) => Math.random() < p;
 // productivity split the demo shows is computed the same way a real org's
 // would be, not hand-faked.
 // ============================================================================
-const PRODUCTIVE_APPS = ["Visual Studio Code", "Cursor", "Slack", "Microsoft Teams", "Figma", "Postman", "Notion"];
+const PRODUCTIVE_APPS = ["Visual Studio Code", "Cursor", "Slack", "Microsoft Teams", "Figma", "Postman", "Notion", "Tally"];
 const PRODUCTIVE_SITES = [
   "github.com",
   "stackoverflow.com",
@@ -196,8 +144,6 @@ const CATEGORY_OVERRIDES: CategoryRule[] = [
   { type: "WEB" as CategoryRule["type"], pattern: "northwind-crm.internal", category: Cat.PRODUCTIVE },
   { type: "WEB" as CategoryRule["type"], pattern: "producthunt.com", category: Cat.UNPRODUCTIVE },
 ];
-const RULES: CategoryRule[] = [...DEFAULT_CATEGORY_RULES, ...CATEGORY_OVERRIDES];
-const categoryOf = (type: "APP" | "WEB", name: string) => classifyActivity(type, name, RULES);
 
 // ============================================================================
 // Org structure
@@ -311,8 +257,8 @@ async function resetDemoOrg() {
   }
 }
 
-async function writeScreenshotFile(key: string, category: string): Promise<number> {
-  const png = placeholderImage(category);
+async function writeScreenshotFile(key: string, appOrSiteName: string): Promise<number> {
+  const png = await mockupImage(appOrSiteName);
   if (STORAGE_DRIVER === "local") {
     const full = join(STORAGE_DIR, key);
     await mkdir(dirname(full), { recursive: true });
@@ -445,11 +391,10 @@ async function main() {
           if (!lastActiveAt || endedAt > lastActiveAt) lastActiveAt = endedAt;
           lastApp = b.type === "APP" ? b.name : lastApp;
 
-          const category = categoryOf(b.type, b.name);
           for (let t = 0; t < b.durationMin; t += SCREENSHOT_INTERVAL_MIN) {
             const capturedAt = new Date(startedAt.getTime() + t * 60_000);
             const key = `${org.id}/${employee.id}/${capturedAt.getFullYear()}/${capturedAt.getMonth() + 1}/${capturedAt.getTime()}-${Math.random().toString(36).slice(2, 8)}.png`;
-            const bytes = await writeScreenshotFile(key, category);
+            const bytes = await writeScreenshotFile(key, b.name);
             screenshots.push({
               orgId: org.id,
               employeeId: employee.id,

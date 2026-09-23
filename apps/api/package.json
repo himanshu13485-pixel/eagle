@@ -11,7 +11,8 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "ts-node --transpile-only prisma/seed.ts",
-    "db:seed:demo": "ts-node --transpile-only prisma/seed-demo.ts"
+    "db:seed:demo": "ts-node --transpile-only prisma/seed-demo.ts",
+    "demo:screenshots": "ts-node --transpile-only prisma/demo-assets/generate-screenshots.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"
@@ -47,6 +48,7 @@
     "@types/node": "^20.16.10",
     "@types/nodemailer": "^8.0.1",
     "@types/passport-jwt": "^4.0.1",
+    "playwright": "^1.63.0",
     "prisma": "^5.20.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.3"
