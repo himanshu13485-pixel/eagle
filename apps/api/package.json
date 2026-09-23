@@ -10,7 +10,8 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:seed": "ts-node --transpile-only prisma/seed.ts"
+    "db:seed": "ts-node --transpile-only prisma/seed.ts",
+    "db:seed:demo": "ts-node --transpile-only prisma/seed-demo.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"
