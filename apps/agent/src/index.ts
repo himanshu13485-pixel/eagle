@@ -10,6 +10,7 @@ import { SiteBlocker } from "./blocker";
 import { AGENT_BUILD } from "./build-info";
 import { Updater, relaunchWindows, cleanupPreviousUpdate } from "./updater";
 import { UPDATE_PUBLIC_KEY } from "./update-key";
+import { acquireSingleInstance, launcherFor, registerTask, repairAutostart } from "./watchdog";
 
 // The build number rides along so the dashboard shows which PCs have picked up
 // an automatic update.
@@ -50,6 +51,7 @@ class Agent {
   private trackedDay = "";
   private control: Control;
   private blocker = new SiteBlocker();
+  private ticking = false;
 
   constructor(
     private readonly api: EagleApi,
@@ -77,8 +79,16 @@ class Agent {
 
   async start() {
     console.log(`[eagle-agent] starting on ${hostname()} (${osPlatform()})`);
-    await this.tick();
-    setInterval(() => this.tick().catch((e) => console.error("[tick]", e.message)), TICK_MS);
+    await this.tick().catch((e) => console.error("[tick]", e.message));
+    // One tick at a time: a slow tick (stalled upload, sluggish PowerShell)
+    // used to let the next ones pile up on top of it.
+    setInterval(() => {
+      if (this.ticking) return;
+      this.ticking = true;
+      this.tick()
+        .catch((e) => console.error("[tick]", e.message))
+        .finally(() => (this.ticking = false));
+    }, TICK_MS);
 
     for (const sig of ["SIGINT", "SIGTERM"] as const) {
       process.on(sig, () => this.shutdown().finally(() => process.exit(0)));
@@ -250,6 +260,27 @@ class Agent {
 }
 
 async function main() {
+  // The installer calls `eagle-agent.exe --register-task` to set up autostart
+  // (see watchdog.ts), then exits; it is not a normal agent run.
+  if (process.argv.includes("--register-task")) {
+    const r = await registerTask({ launcherPath: launcherFor(process.execPath) });
+    if (!r.ok) console.error(r.out);
+    process.exit(r.ok ? 0 : 1);
+  }
+
+  // A stray error must not end monitoring: log it and keep going. (A dead
+  // agent shows the employee Offline until something starts it again.)
+  process.on("unhandledRejection", (e: any) => console.error("[unhandled]", e?.message ?? e));
+  process.on("uncaughtException", (e) => console.error("[uncaught]", e?.message ?? e));
+
+  if (process.platform === "win32" && AGENT_BUILD > 0) {
+    if (!(await acquireSingleInstance())) {
+      console.log("[eagle-agent] already running for this user — exiting");
+      process.exit(0);
+    }
+    await repairAutostart(process.execPath).catch((e) => console.error("[watchdog]", e.message));
+  }
+
   const local = loadConfig();
   const api = new EagleApi(local.serverUrl, local.deviceToken);
   api.agentVersion = AGENT_VERSION;

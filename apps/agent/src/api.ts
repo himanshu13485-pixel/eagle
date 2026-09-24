@@ -21,6 +21,12 @@ export interface AgentConfig {
 export type Presence = "ACTIVE" | "IDLE" | "OFFLINE";
 export type Trigger = "PERIODIC" | "APP_SWITCH" | "WEBCAM" | "ON_DEMAND";
 
+// fetch has no overall deadline of its own, so a connection the server
+// accepts but never answers could hold a request (and the tick waiting on it)
+// for minutes. Bound every call; a timeout is just a failed attempt to retry.
+const REQUEST_TIMEOUT_MS = 20_000;
+const UPLOAD_TIMEOUT_MS = 60_000;
+
 export class EagleApi {
   /** Reported on every heartbeat, so the dashboard reflects an auto-update
    *  without waiting for a re-enrollment. */
@@ -49,6 +55,7 @@ export class EagleApi {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(input),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`Enroll failed: ${res.status} ${await res.text()}`);
     return res.json() as any;
@@ -63,6 +70,7 @@ export class EagleApi {
       method: "POST",
       headers: { "content-type": "application/json", ...this.authHeaders() },
       body: JSON.stringify({ status, activeApp, activeUrl, agentVersion: this.agentVersion }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`Heartbeat failed: ${res.status}`);
     return res.json() as any;
@@ -83,6 +91,7 @@ export class EagleApi {
       method: "POST",
       headers: { ...this.authHeaders() },
       body: form,
+      signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`Upload failed: ${res.status} ${await res.text()}`);
   }
@@ -95,6 +104,7 @@ export class EagleApi {
       method: "POST",
       headers: { "content-type": "application/json", ...this.authHeaders() },
       body: JSON.stringify({ items }),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (!res.ok) throw new Error(`Activity post failed: ${res.status}`);
   }

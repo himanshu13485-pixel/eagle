@@ -99,7 +99,7 @@ export class Updater {
     this.checking = true;
     const newPath = sibling(this.o.exePath, "new");
     try {
-      const res = await fetch(`${this.o.serverUrl}/api/agent/update?os=${this.o.os}`, { cache: "no-store" });
+      const res = await fetch(`${this.o.serverUrl}/api/agent/update?os=${this.o.os}`, { cache: "no-store", signal: AbortSignal.timeout(20_000) });
       if (res.status === 404) return "none"; // nothing published for this OS
       if (!res.ok) return "failed";
 
