@@ -76,7 +76,7 @@ export function AppWebsiteUsage() {
       />
 
       {/* stat cards */}
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="mb-5 grid grid-cols-2 gap-3 sm:mb-6 sm:gap-4 lg:grid-cols-5">
         <Tile icon="◔" tone="sky" label="Total Active Time" value={fmtHM(data?.summary.totalActiveSec ?? 0)}
           foot={delta !== null ? <span className={delta >= 0 ? "text-green-600" : "text-red-500"}>{delta >= 0 ? "▲" : "▼"} {Math.abs(delta)}% vs prev</span> : undefined} />
         <Tile icon="💼" tone="indigo" label="Shift Time" value={fmtHM(data?.summary.shiftSec ?? 0)} info="Needs shift config (later phase)." />

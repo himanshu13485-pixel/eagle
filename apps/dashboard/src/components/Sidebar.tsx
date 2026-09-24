@@ -1,8 +1,9 @@
+import type { ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import { BRAND } from "@eagle/shared";
 import { Mark } from "./Mark";
 
-const ICON: Record<string, string> = {
+export const ICON: Record<string, string> = {
   dashboard: "M3 3h8v8H3zM13 3h8v5h-8zM13 10h8v11h-8zM3 13h8v8H3z",
   employees: "M16 11a4 4 0 10-8 0 4 4 0 008 0zM3 21a7 7 0 0118 0",
   live: "M15 10l4-2v8l-4-2v-4zM3 6h12v12H3z",
@@ -16,9 +17,9 @@ const ICON: Record<string, string> = {
   billing: "M2 7h20v10H2zM2 11h20M6 15h4",
 };
 
-function Icon({ d }: { d: string }) {
+export function Icon({ d, className = "h-5 w-5" }: { d: string; className?: string }) {
   return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d={d} />
     </svg>
   );
@@ -51,9 +52,10 @@ const base =
 const idle = "text-gray-300 hover:bg-white/5 hover:text-white";
 const active = "bg-white/10 text-white ring-1 ring-inset ring-white/10 border-l-2 border-amber-400";
 
-export function Sidebar() {
+/** `className` sets display: the layout hides it below lg and reuses it as the phone menu drawer. */
+export function Sidebar({ className = "flex", footer }: { className?: string; footer?: ReactNode }) {
   return (
-    <aside className="flex h-screen w-64 shrink-0 flex-col bg-ink px-4 py-6 text-white">
+    <aside className={`${className} h-screen w-64 shrink-0 flex-col bg-ink px-4 py-6 text-white`}>
       <div className="mb-8 flex items-center gap-2 px-2">
         <Mark className="h-9 w-9" />
         <span className="text-lg font-extrabold">
@@ -89,6 +91,7 @@ export function Sidebar() {
           </NavLink>
         ))}
       </nav>
+      {footer}
     </aside>
   );
 }

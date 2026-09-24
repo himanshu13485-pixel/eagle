@@ -16,7 +16,7 @@ const COLORS = ["#6366F1", "#22C55E", "#F59E0B", "#EF4444", "#06B6D4", "#A855F7"
 
 function StatCard({ label, value, tone }: { label: string; value: number | string; tone?: string }) {
   return (
-    <div className="rounded-2xl bg-white p-6 shadow-sm">
+    <div className="rounded-2xl bg-white p-4 shadow-sm sm:p-6">
       <div className="text-3xl font-black text-gray-900">{value}</div>
       <div className={`mt-1 text-sm font-medium ${tone ?? "text-gray-500"}`}>{label}</div>
     </div>
@@ -42,14 +42,14 @@ export function Dashboard() {
     <div>
       <PageHeader title="Dashboard" subtitle="How work actually happens across your team" />
 
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
         <StatCard label="Total Employees" value={data?.totalEmployees ?? "—"} />
         <StatCard label="Active now" value={data?.active ?? "—"} tone="text-green-600" />
         <StatCard label="Idle" value={data?.idle ?? "—"} tone="text-amber-600" />
         <StatCard label="Offline" value={data?.offline ?? "—"} tone="text-rose-500" />
       </div>
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-3">
+      <div className="mt-4 grid gap-4 sm:mt-6 sm:gap-6 lg:grid-cols-3">
         <div className="rounded-2xl bg-white p-6 shadow-sm lg:col-span-2">
           <h3 className="mb-4 text-lg font-bold text-gray-900">Most Used Applications (24h)</h3>
           {pie.length ? (

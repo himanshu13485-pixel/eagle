@@ -83,6 +83,7 @@ export function Timesheet() {
   }
 
   const cols = data?.columns ?? [];
+  const cardView = mode === "day" && cols.length === 0;
 
   return (
     <div>
@@ -152,7 +153,7 @@ export function Timesheet() {
       </p>
 
       {/* stat tiles */}
-      <div className={`mb-6 grid gap-4 sm:grid-cols-2 ${mode === "period" ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
+      <div className={`mb-5 grid grid-cols-2 gap-3 sm:mb-6 sm:gap-4 ${mode === "period" ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
         <StatTile icon="✓" tone="green" label="Usage Time" value={fmtHMS(data?.totals.usageSec ?? 0)} />
         <StatTile icon="🕒" tone="amber" label="Idle Time" value={fmtHMS(data?.totals.idleSec ?? 0)} />
         <StatTile icon="⚡" tone="gray" label="Offline Time" value={fmtHMS(data?.totals.offlineSec ?? 0)} info="Time the agent wasn't reporting (agent offline-duration tracking arrives in a later phase)." />
@@ -160,8 +161,36 @@ export function Timesheet() {
         {mode === "period" && <StatTile icon="＋" tone="rose" label="Overtime" value={fmtHMS(data?.totals.overtimeSec ?? 0)} info="Worked time outside the rostered shift. Employees with no shift assigned are not counted." />}
       </div>
 
+      {/* phones: the day-wise summary as one card per person (the wide table scrolls sideways otherwise) */}
+      {cardView && (
+        <div className="space-y-3 md:hidden">
+          {loading ? (
+            <p className="rounded-2xl bg-white px-5 py-12 text-center text-gray-400 shadow-sm">Loading…</p>
+          ) : data && data.rows.length ? (
+            data.rows.map((r) => (
+              <div key={r.employeeId} className="rounded-2xl bg-white p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-gray-900">{r.employeeName}</p>
+                    <p className="truncate text-xs text-gray-500">{r.shiftName ?? "No shift"}</p>
+                  </div>
+                  <LateBadge sec={r.lateSec} />
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                  <MiniStat label="First activity" value={r.firstActivity ? fmtTime(r.firstActivity) : "—"} />
+                  <MiniStat label="Last activity" value={r.lastActivity ? fmtTime(r.lastActivity) : "—"} />
+                  <MiniStat label="Tracked" value={dash(r.trackedSec)} tone="text-brand" />
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="rounded-2xl bg-white px-5 py-12 text-center text-gray-400 shadow-sm">No activity for this selection.</p>
+          )}
+        </div>
+      )}
+
       {/* table */}
-      <div className="overflow-x-auto rounded-2xl bg-white shadow-sm">
+      <div className={`${cardView ? "hidden md:block " : ""}overflow-x-auto rounded-2xl bg-white shadow-sm`}>
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
             <tr>
@@ -289,6 +318,15 @@ function StatTile({ icon, tone, label, value, info }: { icon: string; tone: stri
         </p>
         <p className="mt-0.5 text-xl font-black text-gray-900">{value}</p>
       </div>
+    </div>
+  );
+}
+
+function MiniStat({ label, value, tone = "text-gray-800" }: { label: string; value: string; tone?: string }) {
+  return (
+    <div>
+      <p className="text-gray-400">{label}</p>
+      <p className={`mt-0.5 font-semibold ${tone}`}>{value}</p>
     </div>
   );
 }

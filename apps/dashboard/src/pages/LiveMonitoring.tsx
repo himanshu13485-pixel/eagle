@@ -112,15 +112,15 @@ export function LiveMonitoring() {
   };
 
   const viewArea = (
-    <div className={fullscreen ? "fixed inset-0 z-50 overflow-auto bg-gray-900 p-6" : ""}>
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex flex-wrap gap-2">
+    <div className={fullscreen ? "fixed inset-0 z-50 overflow-auto bg-gray-900 p-4 sm:p-6" : "order-first lg:order-none"}>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 sm:flex-wrap">
           {MODES.map((m) => (
             <button
               key={m.key}
               onClick={() => setMode(m.key)}
               title={m.hint}
-              className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+              className={`shrink-0 rounded-lg px-3 py-2 text-sm font-semibold transition sm:px-4 ${
                 mode === m.key ? "bg-brand text-white" : "bg-white text-gray-600 hover:bg-gray-100"
               }`}
             >
@@ -130,14 +130,19 @@ export function LiveMonitoring() {
         </div>
         <button
           onClick={() => setFullscreen((f) => !f)}
-          className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-600"
+          title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+          className="flex shrink-0 items-center gap-2 rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-sm font-semibold text-gray-600 sm:px-4"
         >
-          {fullscreen ? "Exit fullscreen" : "Fullscreen"}
+          {/* Phones get the icon alone so all four modes fit on one row. */}
+          <svg viewBox="0 0 24 24" className="h-4 w-4 sm:hidden" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d={fullscreen ? "M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" : "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"} />
+          </svg>
+          <span className="hidden sm:inline">{fullscreen ? "Exit fullscreen" : "Fullscreen"}</span>
         </button>
       </div>
 
       {mode === "single" && !selectedId ? (
-        <div className="grid place-items-center rounded-2xl bg-white py-24 text-center text-gray-400">
+        <div className="grid place-items-center rounded-2xl bg-white px-6 py-16 text-center text-gray-400 sm:py-24">
           Select an employee from the list to start live monitoring.
         </div>
       ) : selectedIds.length === 0 ? (
@@ -205,13 +210,18 @@ export function LiveMonitoring() {
               );
             })}
           </div>
-          <div className="max-h-[60vh] space-y-1 overflow-y-auto">
+          <div className="max-h-[45vh] space-y-1 overflow-y-auto lg:max-h-[60vh]">
             {filtered.map((e) => {
               const watchable = e.status === "ACTIVE" || e.status === "IDLE";
               return (
                 <button
                   key={e.id}
-                  onClick={() => { setMode("single"); setSelectedId(e.id); }}
+                  onClick={() => {
+                    setMode("single");
+                    setSelectedId(e.id);
+                    // Phones stack the viewer above this list — bring it into view.
+                    if (window.innerWidth < 1024) document.querySelector("main")?.scrollTo({ top: 0, behavior: "smooth" });
+                  }}
                   className={`flex w-full items-center justify-between gap-2 rounded-xl px-3 py-2.5 text-left transition ${
                     selectedId === e.id && mode === "single" ? "bg-brand/10" : "hover:bg-gray-50"
                   }`}

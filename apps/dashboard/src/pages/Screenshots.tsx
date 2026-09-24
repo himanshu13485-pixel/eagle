@@ -74,14 +74,14 @@ export function Screenshots() {
       />
 
       {/* filters */}
-      <div className="mb-6 grid gap-4 rounded-2xl bg-white p-5 shadow-sm sm:grid-cols-2 lg:grid-cols-5">
-        <Filter label="Employee">
+      <div className="mb-5 grid grid-cols-2 gap-3 rounded-2xl bg-white p-4 shadow-sm sm:mb-6 sm:gap-4 sm:p-5 lg:grid-cols-5">
+        <Filter label="Employee" className="col-span-2 sm:col-span-1">
           <select value={employeeId} onChange={(e) => { setPage(1); setEmployeeId(e.target.value); }} className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm">
             <option value="">All Employees</option>
             {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
         </Filter>
-        <Filter label="Date range" className="sm:col-span-2 lg:col-span-2">
+        <Filter label="Date range" className="col-span-2 lg:col-span-2">
           <div className="flex items-center gap-2">
             <input type="date" value={fromDate} onChange={(e) => { setPage(1); setFromDate(e.target.value); }} className="min-w-0 flex-1 rounded-xl border border-gray-200 px-3 py-2.5 text-sm" />
             <span className="shrink-0 text-gray-400">–</span>
@@ -95,14 +95,14 @@ export function Screenshots() {
           <input type="time" value={endTime} onChange={(e) => { setPage(1); setEndTime(e.target.value); }} className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm" />
         </Filter>
         {hasFilter && (
-          <div className="flex items-end sm:col-span-2 lg:col-span-5">
+          <div className="col-span-2 flex items-end lg:col-span-5">
             <button onClick={clearFilters} className="text-sm font-semibold text-brand">Clear filters</button>
           </div>
         )}
       </div>
 
       {data && data.items.length ? (
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
           {data.items.map((s, i) => (
             <button key={s.id} onClick={() => setViewer(i)} className="overflow-hidden rounded-2xl bg-white text-left shadow-sm transition hover:shadow-md">
               <img src={s.imageUrl} alt={s.app ?? "screenshot"} className="h-44 w-full bg-gray-100 object-cover" />
