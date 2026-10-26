@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { width: 100vw; height: 100vh; overflow: hidden; }
+      body {
+        background: #26272B;
+        color: #F7F6F3;
+        font-family: Inter, system-ui, sans-serif;
+        padding: 5.7vh 6.7vw;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .top { display: flex; align-items: center; gap: 1.2vw; }
+      .mark {
+        width: 3.4vw; height: 3.4vw; border-radius: 0.9vw;
+        background: #F5B301; color: #26272B;
+        display: grid; place-items: center;
+        font-weight: 700; font-size: 1.9vw;
+      }
+      .name { font-size: 2.2vw; font-weight: 700; letter-spacing: -0.01em; }
+      h1 {
+        font-family: "Instrument Serif", Georgia, serif;
+        font-size: 6.9vw; line-height: 1.04; font-weight: 400;
+        letter-spacing: -0.02em; max-width: 15ch;
+      }
+      h1 em { color: #F5B301; font-style: italic; }
+      .sub { margin-top: 2.1vw; font-size: 2.1vw; line-height: 1.45; color: #B9B7B1; max-width: 42ch; }
+      .foot { display: flex; align-items: center; justify-content: space-between; font-size: 1.8vw; color: #B9B7B1; }
+      .pills { display: flex; gap: 0.8vw; }
+      .pill { border: 1px solid #45464B; border-radius: 999px; padding: 0.8vw 1.5vw; font-size: 1.5vw; color: #D8D6D1; }
+      .url { color: #F5B301; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <div class="top">
+      <div class="mark">W</div>
+      <div class="name">Workk</div>
+    </div>
+
+    <div>
+      <h1>How work actually happens, <em>across your team</em>.</h1>
+      <p class="sub">Screenshots, live screen view, app &amp; website usage, idle time and timesheets — so you manage with facts, not assumptions.</p>
+    </div>
+
+    <div class="foot">
+      <div class="pills">
+        <span class="pill">Screenshots</span>
+        <span class="pill">Live view</span>
+        <span class="pill">Timesheets</span>
+        <span class="pill">Productivity reports</span>
+      </div>
+      <div class="url">workk.work</div>
+    </div>
+  </body>
+</html>

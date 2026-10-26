@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 import { Footer, Nav } from "./components/Chrome";
+import { Seo } from "./components/Seo";
+import { organizationJsonLd, softwareJsonLd } from "./lib/seo";
 import Home from "./pages/Home";
 import Features from "./pages/Features";
 import Pricing from "./pages/Pricing";
@@ -23,6 +25,7 @@ export default function App() {
   return (
     <div className="flex min-h-screen flex-col">
       <ScrollToTop />
+      <Seo jsonLd={[organizationJsonLd(), softwareJsonLd()]} />
       <Nav />
       <main className="flex-1">
         <Routes>

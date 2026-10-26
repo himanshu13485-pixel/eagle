@@ -4,6 +4,7 @@ import type { PlanDefinition } from "@eagle/shared";
 import { SIGNUP_URL } from "../lib/site";
 import { Accent, Button, Display, Eyebrow, Section } from "../components/ui";
 import { PageHead } from "../components/PageHead";
+import { faqJsonLd, jsonLdScript } from "../lib/seo";
 
 const FAQ = [
   [
@@ -42,6 +43,13 @@ export default function Pricing() {
 
   return (
     <>
+      {/* These questions are already on the page; marking them up as an
+          FAQPage is what lets them show as expandable answers in a search
+          result rather than being invisible to the crawler. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(faqJsonLd(FAQ as [string, string][])) }}
+      />
       <PageHead
         eyebrow="Pricing"
         title={<>Per seat, per month. <Accent>No surprises.</Accent></>}
