@@ -156,7 +156,7 @@ export function Timesheet() {
       <div className={`mb-5 grid grid-cols-2 gap-3 sm:mb-6 sm:gap-4 ${mode === "period" ? "lg:grid-cols-5" : "lg:grid-cols-4"}`}>
         <StatTile icon="✓" tone="green" label="Usage Time" value={fmtHMS(data?.totals.usageSec ?? 0)} />
         <StatTile icon="🕒" tone="amber" label="Idle Time" value={fmtHMS(data?.totals.idleSec ?? 0)} />
-        <StatTile icon="⚡" tone="gray" label="Offline Time" value={fmtHMS(data?.totals.offlineSec ?? 0)} info="Time the agent wasn't reporting (agent offline-duration tracking arrives in a later phase)." />
+        <StatTile icon="⚡" tone="gray" label="Offline Time" value={fmtHMS(data?.totals.offlineSec ?? 0)} info="Time the agent wasn't reporting — the PC was off, asleep, or had no network connection." />
         <StatTile icon="◷" tone="indigo" label="Tracked Time" value={fmtHMS(data?.totals.trackedSec ?? 0)} info="Usage + Idle." />
         {mode === "period" && <StatTile icon="＋" tone="rose" label="Overtime" value={fmtHMS(data?.totals.overtimeSec ?? 0)} info="Worked time outside the rostered shift. Employees with no shift assigned are not counted." />}
       </div>

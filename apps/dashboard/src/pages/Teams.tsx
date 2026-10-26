@@ -39,7 +39,11 @@ export function Teams() {
   const [live, setLive] = useState<EmployeeDto | null>(null);
 
   function load() {
-    api<TeamsResponse>("/teams").then((d) => { setData(d); setSelected((cur) => cur ?? d.teams[0]?.id ?? null); });
+    // This had no .catch at all, so a failed load left the page blank with an
+    // unhandled rejection and nothing on screen to explain it.
+    api<TeamsResponse>("/teams")
+      .then((d) => { setData(d); setSelected((cur) => cur ?? d.teams[0]?.id ?? null); })
+      .catch((e) => setToast(e instanceof Error ? e.message : "Couldn't load teams."));
     api<EmployeeDto[]>("/employees").then(setEmployees).catch(() => {});
   }
   useEffect(load, []);
@@ -51,24 +55,43 @@ export function Teams() {
   const filteredTeams = useMemo(() => (data?.teams ?? []).filter((t) => t.name.toLowerCase().includes(search.toLowerCase())), [data, search]);
   const limitReached = data?.limit != null && data.used >= data.limit;
 
+  // Every action here used to run unguarded: a failed request changed nothing
+  // on screen and surfaced only as an unhandled rejection in the console, so
+  // the button looked like it simply hadn't worked.
+  const fail = (e: unknown, fallback: string) => setToast(e instanceof Error ? e.message : fallback);
+
   async function addTeam() {
     if (!addName.trim() || limitReached) return;
-    await api("/teams", { method: "POST", body: JSON.stringify({ name: addName.trim() }) });
-    setAddName(""); load();
+    try {
+      await api("/teams", { method: "POST", body: JSON.stringify({ name: addName.trim() }) });
+      setAddName(""); load();
+    } catch (e) { fail(e, "Couldn't create the team."); }
   }
   async function removeTeam(id: string) {
     if (!confirm("Delete this team? Members will be unassigned.")) return;
-    await api(`/teams/${id}`, { method: "DELETE" });
-    if (selected === id) setSelected(null);
-    load();
+    try {
+      await api(`/teams/${id}`, { method: "DELETE" });
+      if (selected === id) setSelected(null);
+      load();
+    } catch (e) { fail(e, "Couldn't delete the team."); }
   }
   async function assign(employeeId: string, teamId: string | null) {
-    await api("/teams/assign", { method: "POST", body: JSON.stringify({ employeeId, teamId }) });
-    load();
+    // Moving someone who is already in another team is a real reassignment —
+    // the picker used to offer them with no hint of where they were, and move
+    // them silently.
+    const emp = employees.find((x) => x.id === employeeId);
+    const from = emp?.teamId ? data?.teams.find((t) => t.id === emp.teamId) : null;
+    if (from && teamId && !confirm(`${emp?.name} is currently in ${from.name}. Move them to this team?`)) return;
+    try {
+      await api("/teams/assign", { method: "POST", body: JSON.stringify({ employeeId, teamId }) });
+      load();
+    } catch (e) { fail(e, "Couldn't update that team member."); }
   }
   async function screenshotRequest(e: EmployeeDto) {
-    const r = await api<{ reached: boolean }>(`/employees/${e.id}/screenshot-request`, { method: "POST" });
-    setToast(r.reached ? `Screenshot requested from ${e.name}.` : `${e.name}'s agent is offline.`);
+    try {
+      const r = await api<{ reached: boolean }>(`/employees/${e.id}/screenshot-request`, { method: "POST" });
+      setToast(r.reached ? `Screenshot requested from ${e.name}.` : `${e.name}'s agent is offline.`);
+    } catch (err) { fail(err, "Couldn't request a screenshot."); }
   }
 
   return (

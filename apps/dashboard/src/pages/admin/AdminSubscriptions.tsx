@@ -29,8 +29,9 @@ export function AdminSubscriptions() {
   const [edit, setEdit] = useState<SubClient | null>(null);
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState("");
+  const [loadErr, setLoadErr] = useState("");
 
-  function load() { adminApi<Resp>("/subscriptions").then(setData).catch((e) => setToast(adminErr(e))); }
+  function load() { adminApi<Resp>("/subscriptions").then((d) => { setData(d); setLoadErr(""); }).catch((e) => setLoadErr(adminErr(e, "Couldn't load subscriptions."))); }
   useEffect(load, []);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 3000); return () => clearTimeout(t); }, [toast]);
 
@@ -39,6 +40,17 @@ export function AdminSubscriptions() {
     () => (data?.clients ?? []).filter((c) => c.name.toLowerCase().includes(search.toLowerCase())),
     [data, search],
   );
+
+  // The table said "Loading…" forever when the request failed, because the catch
+  // left `data` as the same null the loading state uses.
+  if (loadErr) {
+    return (
+      <div className="p-6">
+        <p className="text-sm text-gray-600">{loadErr}</p>
+        <button onClick={() => { setLoadErr(""); load(); }} className="mt-3 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Try again</button>
+      </div>
+    );
+  }
 
   return (
     <div>

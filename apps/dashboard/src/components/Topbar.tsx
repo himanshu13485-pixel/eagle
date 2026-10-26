@@ -25,12 +25,10 @@ export function Topbar({ onMenu }: { onMenu?: () => void }) {
         <Mark className="h-8 w-8" />
         <span className="text-lg font-extrabold text-gray-900">{BRAND.name}</span>
       </div>
-      <div className="flex-1">
-        <input
-          placeholder="Search Here"
-          className="hidden w-full max-w-xl rounded-full bg-gray-100 px-5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand/30 sm:block"
-        />
-      </div>
+      {/* A "Search Here" box sat here on every page with no value, no handler
+          and nothing behind it — you could type in it forever and nothing
+          happened. Removed until search actually exists. */}
+      <div className="flex-1" />
       <NotificationBell
         tone="dark"
         list={() => api("/notifications")}

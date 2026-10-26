@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Mark } from "./Mark";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import { getAdmin, adminLogout, adminApi } from "../lib/adminApi";
 import { NotificationBell } from "./NotificationBell";
 
@@ -49,7 +49,9 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           widening this column and scrolling the whole page. */}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="flex items-center justify-between border-b border-gray-200 bg-white px-6 py-3">
-          <span className="text-sm font-semibold text-gray-400">Super Admin</span>
+          {/* This read "Super Admin" for every admin, so a Salesperson saw that here
+              and their real role on the right. Show the signed-in admin's own role. */}
+          <span className="text-sm font-semibold text-gray-400">{ROLE_LABEL[admin?.role ?? ""] ?? admin?.role ?? "Admin"}</span>
           <div className="flex items-center gap-3">
             <NotificationBell
               tone="dark"
@@ -72,7 +74,6 @@ export function AdminLayout({ children }: { children: ReactNode }) {
 }
 
 export function AdminHeader({ title, subtitle, action }: { title: string; subtitle?: string; action?: ReactNode }) {
-  useLocation();
   return (
     <div className="mb-6 flex items-start justify-between">
       <div>

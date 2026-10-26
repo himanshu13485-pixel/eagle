@@ -13,7 +13,7 @@ interface DataReq {
   itemCount: number; error: string | null; completedAt: string | null;
   downloadable: boolean; artifactSize: number; expiresAt: string | null;
 }
-interface ListResp { items: DataReq[]; total: number; page: number; pageSize: number; activeCount: number; activeLimit: number }
+interface ListResp { items: DataReq[]; total: number; page: number; pageSize: number; activeCount: number; activeLimit: number; maxRangeDays: number }
 interface Team { id: string; name: string }
 
 const ACTION_LABEL: Record<string, string> = {
@@ -203,13 +203,13 @@ export function DataManagement() {
         </div>
       </div>
 
-      {open && <CreateModal employees={employees} teams={teams} onClose={() => setOpen(false)} onCreated={() => { setOpen(false); load(); api<Overview>("/data-requests/overview").then(setOv).catch(() => {}); }} onError={setToast} />}
+      {open && <CreateModal employees={employees} teams={teams} maxDays={data?.maxRangeDays ?? 14} onClose={() => setOpen(false)} onCreated={() => { setOpen(false); load(); api<Overview>("/data-requests/overview").then(setOv).catch(() => {}); }} onError={setToast} />}
       {toast && <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-gray-900 px-5 py-3 text-sm font-medium text-white shadow-xl">{toast}</div>}
     </div>
   );
 }
 
-function CreateModal({ employees, teams, onClose, onCreated, onError }: { employees: EmployeeDto[]; teams: Team[]; onClose: () => void; onCreated: () => void; onError: (m: string) => void }) {
+function CreateModal({ employees, teams, maxDays, onClose, onCreated, onError }: { employees: EmployeeDto[]; teams: Team[]; maxDays: number; onClose: () => void; onCreated: () => void; onError: (m: string) => void }) {
   const [selType, setSelType] = useState<"user" | "team">("user");
   const [targetId, setTargetId] = useState("");
   const [dataType, setDataType] = useState<"SCREENSHOTS" | "LOGS">("SCREENSHOTS");
@@ -246,7 +246,7 @@ function CreateModal({ employees, teams, onClose, onCreated, onError }: { employ
         <div className="mb-1 flex items-start justify-between">
           <div>
             <h3 className="text-lg font-bold text-gray-900">Create New Data Request</h3>
-            <p className="text-xs text-gray-400">User or team · up to 14 days per request</p>
+            <p className="text-xs text-gray-400">User or team · up to {maxDays} days per request</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700">✕</button>
         </div>
@@ -280,14 +280,15 @@ function CreateModal({ employees, teams, onClose, onCreated, onError }: { employ
             </div>
           </Field>
 
-          <Field label="Date Range (max 14 days per request)">
+          <Field label={`Date Range (max ${maxDays} days per request)`}>
             <div className="flex gap-2">
               <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="flex-1 rounded-xl border border-gray-200 px-3 py-2.5 text-sm" />
               <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="flex-1 rounded-xl border border-gray-200 px-3 py-2.5 text-sm" />
             </div>
           </Field>
 
-          <p className="text-xs text-gray-400">Business allows up to 31 days per request.</p>
+          {/* Only worth mentioning to someone who isn't already on it. */}
+          {maxDays < 31 && <p className="text-xs text-gray-400">The Business plan allows up to 31 days per request.</p>}
         </div>
 
         <div className="mt-5 flex justify-end gap-2">

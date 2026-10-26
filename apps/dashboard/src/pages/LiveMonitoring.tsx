@@ -8,8 +8,6 @@ import { fmtRelative } from "../lib/format";
 
 const LIST_FILTERS = ["ALL", "ACTIVE", "IDLE", "OFFLINE"] as const;
 type ListFilter = (typeof LIST_FILTERS)[number];
-// Provisional daily live-view budget (placeholder until subscription/metering lands).
-const DAILY_LIVE_MIN = 90;
 
 type Mode = "single" | "grid" | "wall" | "patrol";
 const MODES: { key: Mode; label: string; hint: string }[] = [
@@ -103,7 +101,7 @@ export function LiveMonitoring() {
 
   const { frames, monitors, setMonitor } = useLiveFrames(user?.orgId, selectedIds);
   const liveNow = Object.keys(frames).length;
-  const byId = (id: string) => employees.find((e) => e.id === id)!;
+  const byId = (id: string) => employees.find((e) => e.id === id);
 
   const counts = {
     active: employees.filter((e) => e.status === "ACTIVE").length,
@@ -161,9 +159,17 @@ export function LiveMonitoring() {
                 : "grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
           }
         >
-          {selectedIds.map((id) => (
-            <Tile key={id} emp={byId(id)} frame={frames[id]} fill={fullscreen && (mode === "single" || mode === "patrol")} monitorCount={monitors[id] ?? 1} onMonitor={(i) => setMonitor(id, i)} />
-          ))}
+          {selectedIds.map((id) => {
+            // The employee list is re-polled every 15s. If the person being
+            // watched is deleted or deactivated between polls, byId used to
+            // return undefined through a `!` and the Tile dereferenced it,
+            // taking the whole app down to a blank page.
+            const emp = byId(id);
+            if (!emp) return null;
+            return (
+              <Tile key={id} emp={emp} frame={frames[id]} fill={fullscreen && (mode === "single" || mode === "patrol")} monitorCount={monitors[id] ?? 1} onMonitor={(i) => setMonitor(id, i)} />
+            );
+          })}
         </div>
       )}
     </div>
@@ -176,10 +182,10 @@ export function LiveMonitoring() {
         subtitle="Real-time screen viewing — streams only while you watch"
         action={
           <div className="flex flex-wrap items-center gap-4 text-sm">
-            <span className="flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-500" title="Provisional live-view budget — subscription metering coming soon">
-              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" strokeLinecap="round" /></svg>
-              {DAILY_LIVE_MIN}m remaining of {DAILY_LIVE_MIN}m daily · Resets 12:00 am
-            </span>
+            {/* A daily live-view budget chip used to sit here, hardcoded to
+                "90m remaining of 90m". It never moved, and it contradicted the
+                plan the customer had bought (Basic sells 45 min/day, Business
+                180). Removed until the minutes are actually metered. */}
             <span className="text-green-600">Active {counts.active}</span>
             <span className="text-amber-600">Idle {counts.idle}</span>
             <span className="text-gray-400">Offline {counts.offline}</span>

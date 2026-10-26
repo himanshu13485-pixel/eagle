@@ -44,8 +44,10 @@ export function AdminScreenshots() {
     const p = new URLSearchParams();
     if (clientId) p.set("clientId", clientId);
     if (employeeId) p.set("employeeId", employeeId);
-    if (from) p.set("from", new Date(from).toISOString());
-    if (to) p.set("to", new Date(to).toISOString());
+    // A bare yyyy-mm-dd parses as UTC midnight, which made From == To return
+    // nothing at all. Anchor both ends to the local day the admin picked.
+    if (from) p.set("from", new Date(`${from}T00:00:00`).toISOString());
+    if (to) p.set("to", new Date(`${to}T23:59:59`).toISOString());
     if (trigger) p.set("trigger", trigger);
     p.set("page", String(page));
     p.set("pageSize", "24");

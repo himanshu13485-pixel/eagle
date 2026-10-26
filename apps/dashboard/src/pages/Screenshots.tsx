@@ -13,7 +13,16 @@ const TRIGGER_STYLE: Record<string, string> = {
   WEBCAM: "bg-purple-50 text-purple-600",
   ON_DEMAND: "bg-emerald-50 text-emerald-600",
 };
-const triggerLabel = (t: string) => (t === "APP_SWITCH" ? "App switch" : t === "WEBCAM" ? "Webcam" : t === "ON_DEMAND" ? "On demand" : "Periodic");
+// Keyed rather than a chain ending in "Periodic": the old fallback branch
+// labelled any trigger the client didn't recognise as "Periodic", presenting
+// a confident wrong answer instead of an honest unknown.
+const TRIGGER_LABEL: Record<string, string> = {
+  PERIODIC: "Periodic",
+  APP_SWITCH: "App switch",
+  WEBCAM: "Webcam",
+  ON_DEMAND: "On demand",
+};
+const triggerLabel = (t: string) => TRIGGER_LABEL[t] ?? "Screenshot";
 
 const PAGE_SIZES = [10, 25, 50, 100];
 
@@ -110,7 +119,7 @@ export function Screenshots() {
               <div className="p-4">
                 <div className="flex items-center justify-between">
                   <span className="truncate text-sm font-semibold text-gray-800">{s.employeeName}</span>
-                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${TRIGGER_STYLE[s.trigger]}`}>{triggerLabel(s.trigger)}</span>
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${TRIGGER_STYLE[s.trigger] ?? "bg-gray-100 text-gray-500"}`}>{triggerLabel(s.trigger)}</span>
                 </div>
                 <div className="mt-1 flex items-center justify-between text-xs text-gray-400">
                   <span className="truncate">{s.isIdle ? "Idle" : s.app ?? s.url ?? "—"}</span>
@@ -295,7 +304,7 @@ function Lightbox({ items, index, onIndex, onClose }: {
         </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-gray-500">{new Date(s.capturedAt).toLocaleString()}</span>
-          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${TRIGGER_STYLE[s.trigger]}`}>{triggerLabel(s.trigger)}</span>
+          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${TRIGGER_STYLE[s.trigger] ?? "bg-gray-100 text-gray-500"}`}>{triggerLabel(s.trigger)}</span>
         </div>
       </div>
     </div>

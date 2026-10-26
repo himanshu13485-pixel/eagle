@@ -85,7 +85,9 @@ function ReportsTab() {
     try {
       const res = await api<{ sent: number; skipped: boolean; recipients: string[] }>("/reports/send-snapshot", { method: "POST" });
       setSendMsg(res.skipped
-        ? `Report generated for ${res.recipients.length} recipient(s), but email isn't configured yet — set SMTP_* env vars to deliver it.`
+        // Was: "set SMTP_* env vars to deliver it" — our server configuration
+        // is not the customer's problem to solve.
+        ? `Report generated for ${res.recipients.length} recipient(s), but email delivery isn't set up yet. Contact Workk support to turn it on.`
         : `✓ Report emailed to ${res.sent} recipient(s).`);
     } catch (e: any) {
       let m = "Couldn't send the report."; try { m = JSON.parse(e.message).message || m; } catch { /* keep */ }
@@ -134,7 +136,9 @@ function ReportsTab() {
       {/* demo report preview */}
       <div className="rounded-2xl bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-gray-900">Demo Report</h3>
+          {/* Was headed "Demo Report" — the data underneath is the customer's
+              own, so the heading read as if the product were showing a mock. */}
+          <h3 className="text-lg font-bold text-gray-900">Daily Snapshot</h3>
           <button onClick={() => setShowReport(true)} className="rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white hover:bg-brand-dark">View full report →</button>
         </div>
         <div className="overflow-hidden rounded-xl border border-gray-100 shadow-sm">
@@ -584,7 +588,7 @@ function IntegrationsTab() {
       <ChannelCard
         icon="✈️" name="Telegram" live={providers.telegram}
         placeholder="Chat ID (e.g. 123456789 or -1001234567890 for a group)"
-        hint="Start a chat with your bot (or add it to a group), then paste the chat ID. Find it via @userinfobot."
+        hint="Start a chat with your bot (or add it to a group), then paste the chat ID."
         type="TELEGRAM" channels={(data?.channels ?? []).filter((c) => c.type === "TELEGRAM")}
         onChange={load} onRemove={remove} onTest={test}
       />
@@ -619,10 +623,13 @@ function ChannelCard({ icon, name, live, placeholder, hint, type, channels, onCh
     <div className="rounded-2xl bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-gray-100 text-lg">{icon}</span><span className="font-bold text-gray-900">{name}</span></span>
-        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${live ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700"}`}>{live ? "Live" : "Dry mode"}</span>
+        {/* Was a "Dry mode" badge explaining that the server had no provider
+            credentials — our deployment state, surfaced as if it were the
+            customer's to fix. */}
+        <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${live ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"}`}>{live ? "Connected" : "Not available yet"}</span>
       </div>
       <p className="mt-2 text-xs text-gray-500">{hint}</p>
-      {!live && <p className="mt-1 text-xs text-amber-600">No provider credentials on the server yet — test sends are logged, not delivered.</p>}
+      {!live && <p className="mt-1 text-xs text-gray-500">This channel isn't available on your account yet. Contact Workk support to turn it on.</p>}
 
       {channels.length > 0 && (
         <div className="mt-4 space-y-2">

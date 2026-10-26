@@ -28,6 +28,7 @@ export function AdminSupport() {
   const [kind, setKind] = useState("ALL");
   const [open, setOpen] = useState<string | null>(null);
   const [toast, setToast] = useState("");
+  const [loadErr, setLoadErr] = useState("");
 
   useEffect(() => { adminApi<Client[]>("/clients").then(setClients).catch(() => setClients([])); }, []);
 
@@ -39,13 +40,24 @@ export function AdminSupport() {
     return p.toString();
   }, [clientId, status, kind]);
 
-  function load() { adminApi<Resp>(`/support?${qs}`).then(setData).catch(() => setData(null)); }
+  function load() { adminApi<Resp>(`/support?${qs}`).then((d) => { setData(d); setLoadErr(""); }).catch((e) => setLoadErr(adminErr(e, "Couldn't load the support inbox."))); }
   useEffect(load, [qs]);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 2500); return () => clearTimeout(t); }, [toast]);
 
   async function setTicketStatus(t: Ticket, s: string) {
     try { await adminApi(`/support/${t.id}`, { method: "PATCH", body: JSON.stringify({ status: s }) }); setToast(`${t.requestId} → ${label(s)}`); load(); }
     catch (e) { setToast(adminErr(e)); }
+  }
+
+  // The queue said "Loading…" forever when the request failed, because the catch
+  // set the same null the loading state uses.
+  if (loadErr) {
+    return (
+      <div className="p-6">
+        <p className="text-sm text-gray-600">{loadErr}</p>
+        <button onClick={() => { setLoadErr(""); load(); }} className="mt-3 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Try again</button>
+      </div>
+    );
   }
 
   const c = data?.counts ?? {};

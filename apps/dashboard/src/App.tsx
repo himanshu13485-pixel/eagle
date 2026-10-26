@@ -19,6 +19,7 @@ import { Teams } from "./pages/Teams";
 import { Billing } from "./pages/Billing";
 import { DataManagement } from "./pages/DataManagement";
 import { HelpSupport } from "./pages/HelpSupport";
+import { NotFound } from "./pages/NotFound";
 import { AdminLayout } from "./components/AdminLayout";
 import { getAdminToken } from "./lib/adminApi";
 import { AdminOverview } from "./pages/admin/AdminOverview";
@@ -85,7 +86,9 @@ export default function App() {
       <Route path="/admin/notifications" element={<AdminProtected><AdminNotifications /></AdminProtected>} />
       <Route path="/admin/staff" element={<AdminProtected><AdminStaff /></AdminProtected>} />
 
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* Was a silent <Navigate to="/">, so a mistyped or stale URL looked
+          like it had worked and quietly landed on the dashboard instead. */}
+      <Route path="*" element={<Protected><NotFound /></Protected>} />
     </Routes>
   );
 }

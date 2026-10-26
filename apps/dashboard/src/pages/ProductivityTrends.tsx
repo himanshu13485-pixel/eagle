@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Area, AreaChart, CartesianGrid, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { ProductivityTrendsReport } from "@eagle/shared";
 import { PageHeader } from "../components/Layout";
@@ -15,11 +15,19 @@ export function ProductivityTrends() {
   const [range, setRange] = useState<Range>(defaultRange(14));
   const [tab, setTab] = useState<Tab>("Overview");
   const [data, setData] = useState<ProductivityTrendsReport | null>(null);
+  // Without these, `data === null` meant loading, empty and failed all at
+  // once, and the Overview tab simply rendered nothing below the tab row.
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
+  function load() {
+    setLoading(true);
     api<ProductivityTrendsReport>(`/reports/productivity-trends?from=${range.from}&to=${range.to}`)
-      .then(setData).catch(() => setData(null));
-  }, [range.from, range.to]);
+      .then((d) => { setData(d); setError(""); })
+      .catch((e) => { setData(null); setError(e instanceof Error ? e.message : "Couldn't load this report."); })
+      .finally(() => setLoading(false));
+  }
+  useEffect(load, [range.from, range.to]);
 
   const trend = useMemo(() => (data?.daily ?? []).map((d) => ({
     date: d.date.slice(5),
@@ -44,8 +52,23 @@ export function ProductivityTrends() {
         ))}
       </div>
 
+      {tab === "Overview" && loading && (
+        <div className="grid place-items-center rounded-2xl bg-white py-24 text-gray-400">Loading report…</div>
+      )}
+      {tab === "Overview" && !loading && error && (
+        <div className="grid place-items-center gap-3 rounded-2xl bg-white py-20 text-center">
+          <p className="text-sm text-gray-600">{error}</p>
+          <button onClick={load} className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Try again</button>
+        </div>
+      )}
+      {tab === "Overview" && !loading && !error && !data && (
+        <div className="grid place-items-center rounded-2xl border border-dashed border-gray-300 bg-white py-24 text-center text-gray-400">
+          No activity in this date range yet. Pick a wider range, or enroll an agent to start collecting data.
+        </div>
+      )}
+
       {/* ---------- OVERVIEW ---------- */}
-      {tab === "Overview" && data && (
+      {tab === "Overview" && !loading && !error && data && (
         <>
           <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-gray-400">Executive Snapshot</h3>
           <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -295,7 +318,9 @@ function FocusSplit({ productiveSec, unproductiveSec, neutralSec }: { productive
     <div className="mb-6 rounded-2xl bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="font-bold text-gray-900">Where active time went</h3>
-        <a href="/settings" className="text-xs font-semibold text-brand hover:underline">Edit categories →</a>
+        {/* A raw <a href="/settings"> both ignored the production sub-path and
+            forced a full page reload. */}
+        <Link to="/settings" className="text-xs font-semibold text-brand hover:underline">Edit categories →</Link>
       </div>
       {total === 0 ? (
         <p className="mt-3 text-sm text-gray-400">No active time in this period.</p>

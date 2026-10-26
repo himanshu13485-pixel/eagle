@@ -144,7 +144,7 @@ function ClientModal({ client, sellers, onClose, onSaved, onErr }: { client?: Cl
               <Field label="Owner name"><input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} className="w-full rounded-xl border border-gray-200 px-4 py-2.5" /></Field>
               <Field label="Owner email"><input value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} type="email" className="w-full rounded-xl border border-gray-200 px-4 py-2.5" /></Field>
             </div>
-            <Field label="Owner password (min 6)"><input value={ownerPassword} onChange={(e) => setOwnerPassword(e.target.value)} type="text" className="w-full rounded-xl border border-gray-200 px-4 py-2.5" /></Field>
+            <Field label="Owner password (min 6)"><PasswordInput value={ownerPassword} onChange={setOwnerPassword} /></Field>
           </>}
           <div className="grid grid-cols-2 gap-3">
             <Field label="Plan tier">
@@ -187,4 +187,16 @@ function ClientModal({ client, sellers, onClose, onSaved, onErr }: { client?: Cl
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="block text-sm"><span className="mb-1 block font-medium text-gray-600">{label}</span>{children}</label>;
+}
+
+/** Masked by default — this was a type="text" input, so the password being set
+ *  for a new client owner sat in plain sight on the admin's screen. */
+function PasswordInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input value={value} onChange={(e) => onChange(e.target.value)} type={show ? "text" : "password"} className="w-full rounded-xl border border-gray-200 px-4 py-2.5 pr-16" />
+      <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-500 hover:text-gray-700">{show ? "Hide" : "Show"}</button>
+    </div>
+  );
 }

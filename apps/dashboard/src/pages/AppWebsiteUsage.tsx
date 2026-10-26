@@ -79,8 +79,7 @@ export function AppWebsiteUsage() {
       <div className="mb-5 grid grid-cols-2 gap-3 sm:mb-6 sm:gap-4 lg:grid-cols-5">
         <Tile icon="◔" tone="sky" label="Total Active Time" value={fmtHM(data?.summary.totalActiveSec ?? 0)}
           foot={delta !== null ? <span className={delta >= 0 ? "text-green-600" : "text-red-500"}>{delta >= 0 ? "▲" : "▼"} {Math.abs(delta)}% vs prev</span> : undefined} />
-        <Tile icon="💼" tone="indigo" label="Shift Time" value={fmtHM(data?.summary.shiftSec ?? 0)} info="Needs shift config (later phase)." />
-        <Tile icon="⚡" tone="amber" label="Overtime" value={fmtHM(data?.summary.overtimeSec ?? 0)} info="Needs shift config (later phase)." />
+        {/* Shift Time / Overtime tiles were here. The usage report never computes them — the contract carries them as a hardcoded 0 — so they always read "0h 00m". Shift-aware figures live on the Timesheet, which does compute them. */}
         <Tile icon="🖥" tone="violet" label="Top App" value={data?.summary.topApp?.name ?? "N/A"} foot={<span className="text-gray-400">{data?.summary.appCount ?? 0} apps tracked</span>} />
         <Tile icon="🌐" tone="teal" label="Top Website" value={data?.summary.topWebsite?.name ?? "N/A"} foot={<span className="text-gray-400">{data?.summary.siteCount ?? 0} sites tracked</span>} />
       </div>
@@ -138,8 +137,7 @@ export function AppWebsiteUsage() {
                 <th className="px-5 py-3">Type</th>
                 <th className="px-5 py-3">Category</th>
                 <th className="px-5 py-3">Total Time</th>
-                <th className="px-5 py-3">Shift Time</th>
-                <th className="px-5 py-3">Overtime</th>
+                {/* "Shift Time" and "Overtime" columns lived here, rendering a literal "—" on every row in both views. Two of eight columns were permanently dead; they come back when shift-aware usage is wired up. */}
                 <th className="px-5 py-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -152,11 +150,9 @@ export function AppWebsiteUsage() {
                     <td className="px-5 py-3"><span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${d.type === "WEB" ? "bg-sky-100 text-sky-700" : "bg-indigo-100 text-indigo-700"}`}>{d.type === "WEB" ? "Web" : "App"}</span></td>
                     <td className="px-5 py-3"><CategoryChip category={d.category} /></td>
                     <td className="px-5 py-3">{fmtHM(d.totalSec)}</td>
-                    <td className="px-5 py-3 text-gray-400">—</td>
-                    <td className="px-5 py-3 text-gray-400">—</td>
                     <td className="px-5 py-3 text-right"><button onClick={() => setDetailFor({ name: d.name, type: d.type })} className="text-sm font-semibold text-brand hover:underline">👁 View</button></td>
                   </tr>
-                )) : <tr><td colSpan={8} className="px-5 py-10 text-center text-gray-400">No usage recorded yet.</td></tr>
+                )) : <tr><td colSpan={6} className="px-5 py-10 text-center text-gray-400">No usage recorded yet.</td></tr>
               ) : (
                 data?.byEmployee.length ? data.byEmployee.map((e, i) => (
                   <tr key={e.employeeId} className="hover:bg-gray-50">
@@ -165,11 +161,9 @@ export function AppWebsiteUsage() {
                     <td className="px-5 py-3 text-gray-400">—</td>
                     <td className="px-5 py-3 text-gray-400">—</td>
                     <td className="px-5 py-3">{fmtHM(e.totalSec)}</td>
-                    <td className="px-5 py-3 text-gray-400">—</td>
-                    <td className="px-5 py-3 text-gray-400">—</td>
                     <td className="px-5 py-3 text-right"><button onClick={() => nav(`/employees/${e.employeeId}`)} className="text-sm font-semibold text-brand hover:underline">Visit profile →</button></td>
                   </tr>
-                )) : <tr><td colSpan={8} className="px-5 py-10 text-center text-gray-400">No employee usage yet.</td></tr>
+                )) : <tr><td colSpan={6} className="px-5 py-10 text-center text-gray-400">No employee usage yet.</td></tr>
               )}
             </tbody>
           </table>
@@ -267,8 +261,6 @@ function DetailModal({ row, filters, onClose }: { row: { name: string; type: str
 
         <div className="grid grid-cols-3 gap-3 p-5">
           <MiniStat label="Total Time" value={fmtHM(d?.totalSec ?? 0)} strong />
-          <MiniStat label="Shift Time" value={fmtHM(d?.shiftSec ?? 0)} />
-          <MiniStat label="Overtime" value={fmtHM(d?.overtimeSec ?? 0)} />
         </div>
 
         <div className="flex gap-2 px-5">

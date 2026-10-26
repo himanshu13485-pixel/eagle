@@ -9,6 +9,19 @@ const TIERS: PlanTier[] = [PlanTier.BASIC, PlanTier.PROFESSIONAL, PlanTier.BUSIN
 const STATUS_STYLE: Record<string, string> = { PAID: "bg-green-100 text-green-700", DUE: "bg-amber-100 text-amber-700", VOID: "bg-gray-100 text-gray-500" };
 const fmtDate = (s: string) => new Date(s).toLocaleDateString();
 
+/** Invoices come in several currencies, so their amounts cannot be added into one
+ *  figure — the totals used to sum `amount` across all of them and render the
+ *  result as USD. Group by currency and show one figure per currency instead. */
+const totalsByCurrency = (rows: Invoice[], status: string) =>
+  rows.filter((r) => r.status === status).reduce<Record<string, number>>((acc, r) => {
+    acc[r.currency] = (acc[r.currency] ?? 0) + r.amount;
+    return acc;
+  }, {});
+const fmtTotals = (totals: Record<string, number>) => {
+  const parts = Object.entries(totals).map(([cur, n]) => money(n, cur));
+  return parts.length ? parts.join(" · ") : money(0);
+};
+
 export function AdminInvoices() {
   const [rows, setRows] = useState<Invoice[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -26,7 +39,9 @@ export function AdminInvoices() {
     const p = new URLSearchParams();
     if (clientId) p.set("clientId", clientId);
     if (status !== "ALL") p.set("status", status);
-    if (from) p.set("from", new Date(from).toISOString());
+    // Both ends are local, and both are anchored: `from` was a bare yyyy-mm-dd,
+    // i.e. UTC midnight, while `to` was already local end-of-day.
+    if (from) p.set("from", new Date(from + "T00:00:00").toISOString());
     if (to) p.set("to", new Date(to + "T23:59:59").toISOString());
     return p.toString();
   }, [clientId, status, from, to]);
@@ -35,8 +50,9 @@ export function AdminInvoices() {
   useEffect(load, [qs]);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 3000); return () => clearTimeout(t); }, [toast]);
 
-  const paid = rows.filter((r) => r.status === "PAID").reduce((s, r) => s + r.amount, 0);
-  const due = rows.filter((r) => r.status === "DUE").reduce((s, r) => s + r.amount, 0);
+  const paid = totalsByCurrency(rows, "PAID");
+  const due = totalsByCurrency(rows, "DUE");
+  const anyDue = Object.values(due).some((n) => n > 0);
 
   return (
     <div>
@@ -45,8 +61,8 @@ export function AdminInvoices() {
 
       <div className="mb-5 grid gap-4 sm:grid-cols-3">
         <Stat label="Invoices" value={String(rows.length)} />
-        <Stat label="Collected" value={money(paid)} tone="green" />
-        <Stat label="Outstanding" value={money(due)} tone={due > 0 ? "amber" : undefined} />
+        <Stat label="Collected" value={fmtTotals(paid)} tone="green" />
+        <Stat label="Outstanding" value={fmtTotals(due)} tone={anyDue ? "amber" : undefined} />
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-2">

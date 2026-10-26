@@ -36,9 +36,12 @@ export function Billing() {
   const [viewInv, setViewInv] = useState<Invoice | null>(null);
   const [msg, setMsg] = useState("");
   const [checkoutTier, setCheckoutTier] = useState<PlanTier | null>(null);
+  const [loadErr, setLoadErr] = useState("");
 
   function load() {
-    api<BillingInfo>("/billing").then(setB).catch(() => setB(null));
+    api<BillingInfo>("/billing")
+      .then((d) => { setB(d); setLoadErr(""); })
+      .catch((e) => setLoadErr(e instanceof Error ? e.message : "Couldn't load your billing details."));
     api<Order[]>("/billing/orders").then(setOrders).catch(() => setOrders([]));
     api<Invoice[]>("/billing/invoices").then(setInvoices).catch(() => setInvoices([]));
   }
@@ -52,9 +55,21 @@ export function Billing() {
     api<{ status: string; applied: boolean }>("/billing/verify", { method: "POST", body: JSON.stringify({ orderId }) })
       .then((r) => setMsg(r.applied ? "Payment successful — subscription updated." : `Payment status: ${r.status}.`))
       .catch(() => setMsg("Couldn't verify the payment."))
-      .finally(() => { window.history.replaceState({}, "", "/billing"); load(); });
+      // BASE_URL, not a bare "/billing": in production the app is served from
+      // a sub-path, so this was rewriting the URL to a path that doesn't exist.
+      .finally(() => { window.history.replaceState({}, "", `${import.meta.env.BASE_URL}billing`.replace(/\/{2,}/g, "/")); load(); });
   }, []);
 
+  // "Loading billing…" used to show forever when the request failed, because
+  // the catch set the same null the loading state uses.
+  if (loadErr) {
+    return (
+      <div className="p-6">
+        <p className="text-sm text-gray-600">{loadErr}</p>
+        <button onClick={() => { setLoadErr(""); load(); }} className="mt-3 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">Try again</button>
+      </div>
+    );
+  }
   if (!b) return <div className="p-6 text-gray-400">Loading billing…</div>;
 
   return (
@@ -76,7 +91,10 @@ export function Billing() {
       {b.storage && <StorageMeter storage={b.storage} className="mb-6" />}
 
       {msg && <div className="mb-4 rounded-xl bg-green-50 px-4 py-3 text-sm text-green-700">{msg}</div>}
-      {!b.gatewayConfigured && <div className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700">⚠ Cashfree isn't configured — checkout runs in <b>sandbox/dry mode</b> (you can simulate payment). Set <code>CASHFREE_APP_ID</code> / <code>CASHFREE_SECRET_KEY</code> to go live.</div>}
+      {/* This used to name the gateway's environment variables and tell the
+          customer to set them. Our deployment state is not something to hand
+          the person trying to pay us. */}
+      {!b.gatewayConfigured && <div className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700">Online payment is being set up. To renew or change your plan in the meantime, contact Workk support and we'll sort it out for you.</div>}
 
       <h3 className="mb-3 text-lg font-bold text-gray-900">Product tier</h3>
       <div className="grid gap-4 lg:grid-cols-3">
@@ -210,11 +228,19 @@ function CheckoutModal({ tier, plan, defaultSeats, onClose, onDone }: { tier: Pl
 
         {err && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{err}</p>}
 
-        {pending ? (
+        {/* A "✓ Simulate successful payment" button used to appear here
+            whenever the gateway had no keys — which is exactly the state a
+            half-finished production deploy is in. The server now refuses
+            dev-confirm outside development, so this is dev-only too. */}
+        {pending && import.meta.env.DEV ? (
           <>
-            <div className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">Sandbox order <b>{pending.orderId}</b> created (no live gateway). Simulate a successful payment:</div>
-            <button onClick={simulate} disabled={busy} className="w-full rounded-xl bg-green-500 px-4 py-3 text-sm font-bold text-white hover:bg-green-600 disabled:opacity-50">{busy ? "Applying…" : "✓ Simulate successful payment"}</button>
+            <div className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">Development build: order <b>{pending.orderId}</b> created with no live gateway.</div>
+            <button onClick={simulate} disabled={busy} className="w-full rounded-xl bg-green-500 px-4 py-3 text-sm font-bold text-white hover:bg-green-600 disabled:opacity-50">{busy ? "Applying…" : "Simulate successful payment (dev only)"}</button>
           </>
+        ) : pending ? (
+          <div className="rounded-lg bg-gray-50 px-3 py-3 text-xs text-gray-600">
+            Reference <b>{pending.orderId}</b>. Online payment isn't available yet — quote this reference to Workk support and we'll complete it for you.
+          </div>
         ) : (
           <button onClick={pay} disabled={busy} className="w-full rounded-xl bg-brand px-4 py-3 text-sm font-bold text-white hover:bg-brand-dark disabled:opacity-50">{busy ? "Starting checkout…" : `Pay $${total} with Cashfree`}</button>
         )}

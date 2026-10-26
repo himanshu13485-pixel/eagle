@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import type { AuthUser, LoginResponse } from "@eagle/shared";
 import { api, clearTokens, getToken, setTokens } from "./api";
+import { resetSocket } from "./socket";
 
 interface AuthState {
   user: AuthUser | null;
@@ -52,6 +53,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   function logout() {
     clearTokens();
+    // Drop the live socket too: it authenticated as the user who just left,
+    // and would otherwise keep streaming their org's events.
+    resetSocket();
     localStorage.removeItem("eagle.user");
     localStorage.removeItem("eagle.actingAs");
     setUser(null);

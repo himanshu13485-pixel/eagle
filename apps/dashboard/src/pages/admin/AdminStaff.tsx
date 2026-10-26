@@ -12,8 +12,9 @@ export function AdminStaff() {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [add, setAdd] = useState(false);
   const [toast, setToast] = useState("");
+  const [loadErr, setLoadErr] = useState("");
 
-  function load() { adminApi<Staff[]>("/staff").then(setStaff).catch((e) => setToast(adminErr(e))); }
+  function load() { adminApi<Staff[]>("/staff").then((d) => { setStaff(d); setLoadErr(""); }).catch((e) => setLoadErr(adminErr(e, "Couldn't load the staff list."))); }
   useEffect(load, []);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 3000); return () => clearTimeout(t); }, [toast]);
 
@@ -42,7 +43,11 @@ export function AdminStaff() {
                   {s.id !== me?.id ? <button onClick={() => toggle(s)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${s.active ? "bg-rose-50 text-rose-600 hover:bg-rose-100" : "bg-green-50 text-green-700 hover:bg-green-100"}`}>{s.active ? "Disable" : "Enable"}</button> : <span className="text-xs text-gray-400">—</span>}
                 </td>
               </tr>
-            )) : <tr><td colSpan={6} className="px-5 py-16 text-center text-gray-400">No staff yet.</td></tr>}
+            )) : <tr><td colSpan={6} className="px-5 py-16 text-center text-gray-400">
+              {/* "No staff yet." was impossible here — whoever is reading this page
+                  is staff. An empty list this way meant the request failed. */}
+              {loadErr ? <><span className="text-gray-600">{loadErr}</span><button onClick={() => { setLoadErr(""); load(); }} className="ml-3 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-dark">Try again</button></> : "No staff yet."}
+            </td></tr>}
           </tbody>
         </table>
       </div>
@@ -74,7 +79,7 @@ function StaffModal({ onClose, onSaved, onErr }: { onClose: () => void; onSaved:
         <div className="space-y-3">
           <F label="Name"><input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border border-gray-200 px-4 py-2.5" /></F>
           <F label="Email"><input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className="w-full rounded-xl border border-gray-200 px-4 py-2.5" /></F>
-          <F label="Password (min 6)"><input value={password} onChange={(e) => setPassword(e.target.value)} type="text" className="w-full rounded-xl border border-gray-200 px-4 py-2.5" /></F>
+          <F label="Password (min 6)"><PasswordInput value={password} onChange={setPassword} /></F>
           <F label="Role">
             <select value={role} onChange={(e) => setRole(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-4 py-2.5">
               {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
@@ -91,4 +96,16 @@ function StaffModal({ onClose, onSaved, onErr }: { onClose: () => void; onSaved:
 }
 function F({ label, children }: { label: string; children: ReactNode }) {
   return <label className="block text-sm"><span className="mb-1 block font-medium text-gray-600">{label}</span>{children}</label>;
+}
+
+/** Masked by default — this was a type="text" input, so the password being set
+ *  for a new staff member sat in plain sight on the admin's screen. */
+function PasswordInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <input value={value} onChange={(e) => onChange(e.target.value)} type={show ? "text" : "password"} className="w-full rounded-xl border border-gray-200 px-4 py-2.5 pr-16" />
+      <button type="button" onClick={() => setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-gray-500 hover:text-gray-700">{show ? "Hide" : "Show"}</button>
+    </div>
+  );
 }

@@ -23,7 +23,9 @@ export function Signup() {
       nav("/");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";
-      try { setError(JSON.parse(msg).message || "Sign up failed."); } catch { setError(msg.includes("fetch") ? "Can't reach the API on :4000. Is the backend running?" : msg || "Sign up failed."); }
+      // api() already turns a response into readable text; the old fallback
+      // told the first-time visitor to check whether our backend was running.
+      setError(msg.includes("fetch") ? "We couldn't reach Workk. Check your connection and try again." : msg || "Sign up failed.");
     } finally { setBusy(false); }
   }
 

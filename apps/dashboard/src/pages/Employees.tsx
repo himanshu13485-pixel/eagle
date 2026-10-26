@@ -279,7 +279,10 @@ function InstallerModal({ inst, onOs, busy, onDownload, onClose }: { inst: Insta
       </div>
       <p className="mt-3 text-sm text-gray-500">{INSTALL_HELP[inst.os]}</p>
       <button onClick={onDownload} className="mt-4 w-full rounded-xl bg-brand px-4 py-3 text-sm font-bold text-white hover:bg-brand-dark">⬇ Download installer ({inst.filename})</button>
-      {inst.server.includes("localhost") && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">Points at <code>{inst.server}</code>. For another machine set <code>AGENT_PUBLIC_URL</code> to the LAN IP/hostname (or public domain).</p>}
+      {/* This told the customer to set one of our server's environment
+          variables. It can only appear on a local development build, so it is
+          scoped to one. */}
+      {inst.server.includes("localhost") && import.meta.env.DEV && <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">Development build: this installer points at <code>{inst.server}</code>, which only works on this machine.</p>}
       <div className="mt-5 flex justify-end"><button onClick={onClose} className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">Done</button></div>
     </Shell>
   );
@@ -306,7 +309,7 @@ function ScreencastModal({ orgId, employee, onClose }: { orgId?: string; employe
       <div className="grid aspect-video place-items-center overflow-hidden rounded-xl bg-black">
         {frame ? <img src={frame.data} alt="" className="h-full w-full object-contain" /> : <span className="text-sm text-gray-400">{employee.status === "OFFLINE" ? "Offline — no agent connected" : "Connecting… waiting for frames"}</span>}
       </div>
-      <p className="mt-2 text-xs text-gray-400">Streams only while this window is open (~1 fps). WebRTC upgrade planned.</p>
+      <p className="mt-2 text-xs text-gray-400">Streams only while this window is open.</p>
     </Shell>
   );
 }
@@ -351,7 +354,7 @@ function SettingsModal({ employee, onClose, onSaved }: { employee: EmployeeDto; 
             <h4 className="font-bold text-gray-900">Interval settings</h4>
             <p className="mb-3 text-sm text-gray-500">Capture frequency and idle timeout.</p>
             <div className="space-y-3">
-              <IntervalCard title="Screenshot interval" badge="Core: 10–60 min" hint="Recommended: every 30 min" value={s.screenshotIntervalMin} onChange={(v) => patch({ screenshotIntervalMin: v })} min={1} max={60} />
+              <IntervalCard title="Screenshot interval" badge="10–60 min recommended" hint="Recommended: every 30 min" value={s.screenshotIntervalMin} onChange={(v) => patch({ screenshotIntervalMin: v })} min={1} max={60} />
               <IntervalCard title="App switch capture delay" hint="Delay after an app switch" value={s.appSwitchDelayMin} onChange={(v) => patch({ appSwitchDelayMin: v })} min={1} max={30} />
               <IntervalCard title="System idle after" hint="Mark idle after no input" value={s.idleAfterMin} onChange={(v) => patch({ idleAfterMin: v })} min={1} max={60} />
             </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { BRAND } from "@eagle/shared";
 import { PageHeader } from "../components/Layout";
 import { api } from "../lib/api";
 import { fmtDate } from "../lib/format";
@@ -46,6 +47,8 @@ export function HelpSupport() {
   const [openFaq, setOpenFaq] = useState<string | null>(null);
   const [viewId, setViewId] = useState<string | null>(null);
   const [form, setForm] = useState({ kind: "SUPPORT", subject: "", description: "", contactName: "", contactPhone: "", contactEmail: "" });
+  const [submitErr, setSubmitErr] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   function load() { api<SupportRequest[]>("/support").then(setReqs).catch(() => setReqs([])); }
   useEffect(load, []);
@@ -53,10 +56,20 @@ export function HelpSupport() {
   const canSubmit = form.subject.trim() && form.description.trim();
   async function submit() {
     if (!canSubmit) return;
-    await api("/support", { method: "POST", body: JSON.stringify(form) });
-    setOpen(false);
-    setForm({ kind: "SUPPORT", subject: "", description: "", contactName: "", contactPhone: "", contactEmail: "" });
-    load();
+    // Submitting used to fail silently: the modal stayed open with no message,
+    // so it looked as though the button simply did nothing.
+    setSubmitErr("");
+    setSubmitting(true);
+    try {
+      await api("/support", { method: "POST", body: JSON.stringify(form) });
+      setOpen(false);
+      setForm({ kind: "SUPPORT", subject: "", description: "", contactName: "", contactPhone: "", contactEmail: "" });
+      load();
+    } catch (e) {
+      setSubmitErr(e instanceof Error ? e.message : "Couldn't submit your request. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const faqs = FAQ.filter((f) => cat === "All" || f.cat === cat);
@@ -67,6 +80,15 @@ export function HelpSupport() {
         title="Help & Support"
         action={<button onClick={() => setOpen(true)} className="rounded-full bg-brand px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-dark">+ Add Request</button>}
       />
+
+      {/* The page offered a ticket form and an FAQ and no way to reach a human.
+          If the ticket API itself is down, that left no route to support at all. */}
+      <div className="mb-5 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl bg-white px-5 py-4 text-sm shadow-sm">
+        <span className="font-semibold text-gray-900">Need a hand?</span>
+        <a href={`tel:${BRAND.supportPhone.replace(/\s/g, "")}`} className="font-semibold text-brand hover:underline">{BRAND.supportPhone}</a>
+        <a href={`mailto:${BRAND.supportEmail}`} className="font-semibold text-brand hover:underline">{BRAND.supportEmail}</a>
+        <span className="text-gray-400">Mon–Sat, 10am–7pm IST</span>
+      </div>
 
       <div className="mb-5 flex gap-2 border-b border-gray-200">
         <TabBtn active={tab === "requests"} onClick={() => setTab("requests")}>🗂 My Requests</TabBtn>
@@ -156,9 +178,10 @@ export function HelpSupport() {
               </div>
               <input value={form.contactEmail} onChange={(e) => setForm({ ...form, contactEmail: e.target.value })} placeholder="Contact Email" className="w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm" />
             </div>
+            {submitErr && <p className="mt-4 rounded-lg bg-rose-50 px-3 py-2 text-xs text-rose-700">{submitErr}</p>}
             <div className="mt-5 flex justify-end gap-2">
               <button onClick={() => setOpen(false)} className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">Cancel</button>
-              <button onClick={submit} disabled={!canSubmit} className="rounded-lg bg-brand px-5 py-2 text-sm font-bold text-white hover:bg-brand-dark disabled:opacity-50">Submit Request</button>
+              <button onClick={submit} disabled={!canSubmit || submitting} className="rounded-lg bg-brand px-5 py-2 text-sm font-bold text-white hover:bg-brand-dark disabled:opacity-50">{submitting ? "Submitting…" : "Submit Request"}</button>
             </div>
           </div>
         </div>

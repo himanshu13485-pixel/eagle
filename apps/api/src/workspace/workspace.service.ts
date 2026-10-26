@@ -123,7 +123,10 @@ export class WorkspaceService {
       expiresAt: r.expiresAt?.toISOString() ?? null,
     }));
 
-    return { items, total, page, pageSize, activeCount, activeLimit: ACTIVE_REQUEST_LIMIT };
+    // maxRangeDays travels with the list so the dialog can state this org's
+    // real limit. It used to hardcode 14 and then add "Business allows up to
+    // 31", so a Business customer was told both numbers on one screen.
+    return { items, total, page, pageSize, activeCount, activeLimit: ACTIVE_REQUEST_LIMIT, maxRangeDays: await this.maxDaysFor(orgId) };
   }
 
   async createDataRequest(

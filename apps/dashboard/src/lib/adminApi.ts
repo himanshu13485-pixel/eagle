@@ -79,7 +79,9 @@ export async function openClientDashboard(orgId: string, orgName: string) {
   localStorage.setItem("eagle.refresh", res.refreshToken);
   localStorage.setItem("eagle.user", JSON.stringify(res.user));
   localStorage.setItem(IMPERSONATE_KEY, JSON.stringify({ orgId, orgName: res.user.orgName ?? orgName }));
-  location.href = "/";
+  // BASE_URL, not a bare "/": the app is served from a sub-path in production
+  // (/app), so this used to drop the admin on the marketing site instead.
+  location.href = import.meta.env.BASE_URL;
 }
 
 /** Fetch a client's org token without navigating — used to embed org pages in the admin console. */
@@ -94,7 +96,9 @@ export function returnToAdmin() {
   localStorage.removeItem("eagle.refresh");
   localStorage.removeItem("eagle.user");
   localStorage.removeItem(IMPERSONATE_KEY);
-  location.href = "/admin/clients";
+  // BASE_URL-aware for the same reason as above: in production the console
+  // lives at /app/admin/clients, not /admin/clients.
+  location.href = `${import.meta.env.BASE_URL}admin/clients`.replace(/\/{2,}/g, "/");
 }
 
 /** Turn an adminApi error (whose message may be a JSON body) into a readable string. */
