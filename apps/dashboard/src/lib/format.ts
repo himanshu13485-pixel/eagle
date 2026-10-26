@@ -42,6 +42,32 @@ export function fmtTime(iso: string | null): string {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
+/**
+ * Day + clock time, e.g. "Today 3:42 PM", "Yesterday 9:05 AM", "12 Oct 3:42 PM",
+ * "12 Oct 2025 3:42 PM". Thumbnails used to show the time alone, which is
+ * ambiguous the moment a filter spans more than one day — every card read like
+ * it was from today.
+ */
+export function fmtStamp(iso: string | null): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
+  const time = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  // Compare calendar days, not elapsed hours: a shot at 00:00 today is still
+  // "Today", and Math.round rides out the 23/25-hour days around a DST change.
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const now = new Date();
+  const days = Math.round((startOfDay(now) - startOfDay(d)) / 86400_000);
+  if (days <= 0) return `Today ${time}`;
+  if (days === 1) return `Yesterday ${time}`;
+  const day = d.toLocaleDateString([], {
+    day: "numeric",
+    month: "short",
+    ...(d.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
+  });
+  return `${day} ${time}`;
+}
+
 /** Default report window: last N days as {from,to} yyyy-mm-dd. */
 export function defaultRange(days = 14): { from: string; to: string } {
   const to = new Date();

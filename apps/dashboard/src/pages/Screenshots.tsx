@@ -5,6 +5,7 @@ import { PageHeader } from "../components/Layout";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { getSocket } from "../lib/socket";
+import { fmtStamp } from "../lib/format";
 
 const TRIGGER_STYLE: Record<string, string> = {
   PERIODIC: "bg-blue-50 text-blue-600",
@@ -113,7 +114,7 @@ export function Screenshots() {
                 </div>
                 <div className="mt-1 flex items-center justify-between text-xs text-gray-400">
                   <span className="truncate">{s.isIdle ? "Idle" : s.app ?? s.url ?? "—"}</span>
-                  <span>{new Date(s.capturedAt).toLocaleTimeString()}</span>
+                  <span className="shrink-0">{fmtStamp(s.capturedAt)}</span>
                 </div>
               </div>
             </button>

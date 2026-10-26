@@ -9,7 +9,10 @@ import { captureLinux } from "./linux";
 const pexec = promisify(execFile);
 
 const AGENT_DIR = join(process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"), "EagleAgent");
-const CAPTURE_PS1 = join(AGENT_DIR, "capture3.ps1");
+// Bump the filename whenever CAPTURE_SCRIPT changes: the file is only written
+// when absent, so an upgraded agent would otherwise keep running the old script
+// and silently ignore the new parameters. (capture4 = adds -Stamp.)
+const CAPTURE_PS1 = join(AGENT_DIR, "capture4.ps1");
 const FFMPEG = join(AGENT_DIR, "ffmpeg.exe");
 
 // ---- Screen capture via a trusted on-disk PS1 (see Defender note) ----
@@ -19,7 +22,10 @@ const FFMPEG = join(AGENT_DIR, "ffmpeg.exe");
 // doesn't cost 4x the storage of a full-HD one). 0 means "no cap" for either.
 // Both are applied together: the image is scaled by whichever is more restrictive, so
 // aspect ratio holds and a 3840x1080 dual-monitor desktop is left alone at MaxHeight 1080.
-const CAPTURE_SCRIPT = `param([string]$Out,[int]$Quality=70,[int]$Monitor=-1,[int]$MaxWidth=0,[int]$MaxHeight=0)
+// -Stamp burns a timestamp into the bottom-right of the stored image, so a
+// screenshot that is downloaded, pasted into a document or forwarded still
+// carries when it was taken. Drawn AFTER any downscale, so it stays legible.
+const CAPTURE_SCRIPT = `param([string]$Out,[int]$Quality=70,[int]$Monitor=-1,[int]$MaxWidth=0,[int]$MaxHeight=0,[string]$Stamp='')
 Add-Type -AssemblyName System.Windows.Forms,System.Drawing
 if ($Monitor -ge 0) {
   $screens=[System.Windows.Forms.Screen]::AllScreens
@@ -43,12 +49,42 @@ if ($scale -lt 1.0) {
   $g2.DrawImage($src,0,0,$nw,$nh)
   $g2.Dispose(); $src.Dispose(); $img=$dst
 }
+if ($Stamp -ne '') {
+  $gs=[System.Drawing.Graphics]::FromImage($img)
+  $gs.TextRenderingHint=[System.Drawing.Text.TextRenderingHint]::AntiAlias
+  $fs=[int]($img.Height/54); if ($fs -lt 11) { $fs=11 }; if ($fs -gt 28) { $fs=28 }
+  $font=New-Object System.Drawing.Font('Segoe UI',$fs,[System.Drawing.FontStyle]::Bold,[System.Drawing.GraphicsUnit]::Pixel)
+  $sz=$gs.MeasureString($Stamp,$font)
+  $pad=[int]($fs*0.45); if ($pad -lt 4) { $pad=4 }
+  $bw=$sz.Width+$pad*2; $bh=$sz.Height+$pad*2
+  $bx=$img.Width-$bw-$pad; $by=$img.Height-$bh-$pad
+  if ($bx -lt 0) { $bx=0 }
+  if ($by -lt 0) { $by=0 }
+  $bg=New-Object System.Drawing.SolidBrush ([System.Drawing.Color]::FromArgb(150,0,0,0))
+  $gs.FillRectangle($bg,$bx,$by,$bw,$bh)
+  $gs.DrawString($Stamp,$font,[System.Drawing.Brushes]::White,($bx+$pad),($by+$pad))
+  $gs.Dispose(); $font.Dispose(); $bg.Dispose()
+}
 $enc=[System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders()|Where-Object{$_.MimeType -eq 'image/jpeg'}|Select-Object -First 1
 $p=New-Object System.Drawing.Imaging.EncoderParameters 1
 $p.Param[0]=New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality,[long]$Quality)
 $img.Save($Out,$enc,$p)
 $img.Dispose()
 `;
+
+/** The local date+time to burn into a stored screenshot, e.g. "26 Oct 2026 3:42 pm". */
+export function stampText(at: Date = new Date()): string {
+  const day = at.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const time = at.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: true });
+  return `${day}  ${time}`;
+}
+
+/** The stamp crosses a process boundary into PowerShell, so keep it to plain
+ *  printable text: no quotes, no newlines, nothing that could alter the command. */
+export function sanitizeStamp(s?: string): string {
+  if (!s) return "";
+  return s.replace(/[^\x20-\x7E]/g, " ").replace(/["'`$]/g, "").trim().slice(0, 64);
+}
 
 async function ensureScript(): Promise<void> {
   // capture2.ps1 = the versioned (monitor + downscale) script; always (re)write so upgraded
@@ -57,13 +93,14 @@ async function ensureScript(): Promise<void> {
   if (!existsSync(CAPTURE_PS1)) await writeFile(CAPTURE_PS1, CAPTURE_SCRIPT, "utf8");
 }
 
-interface CaptureOpts { monitor?: number; maxWidth?: number; maxHeight?: number; quality?: number }
+interface CaptureOpts { monitor?: number; maxWidth?: number; maxHeight?: number; quality?: number; stamp?: string }
 
 async function captureScreen(opts: CaptureOpts = {}): Promise<Buffer> {
   const monitor = opts.monitor ?? -1;
   const quality = opts.quality ?? 70;
   const maxWidth = opts.maxWidth ?? 0;
   const maxHeight = opts.maxHeight ?? 0;
+  const stamp = sanitizeStamp(opts.stamp);
   const out = join(tmpdir(), `eagle_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`);
   if (process.platform === "darwin") {
     // macOS: needs Screen Recording permission. -D <n> selects a display (1-based).
@@ -84,7 +121,7 @@ async function captureScreen(opts: CaptureOpts = {}): Promise<Buffer> {
     "powershell.exe",
     ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", CAPTURE_PS1,
       "-Out", out, "-Quality", String(quality), "-Monitor", String(monitor),
-      "-MaxWidth", String(maxWidth), "-MaxHeight", String(maxHeight)],
+      "-MaxWidth", String(maxWidth), "-MaxHeight", String(maxHeight), "-Stamp", stamp],
     { windowsHide: true, timeout: 15000, maxBuffer: 4 * 1024 * 1024 },
   );
   const buf = await readFile(out);
@@ -215,7 +252,9 @@ export async function captureJpeg(withWebcam = false, maxHeight = 1080): Promise
   if (process.platform !== "win32" && process.platform !== "darwin" && process.platform !== "linux") {
     throw new Error("Screen capture is implemented for Windows, macOS and Linux only");
   }
-  const screen = await captureScreen({ maxHeight });
+  // Stored shots carry a burned-in timestamp (live frames don't: they're
+  // transient, and the viewer already shows the clock).
+  const screen = await captureScreen({ maxHeight, stamp: stampText() });
   // Webcam overlay is Windows-only for now (macOS uses a different capture path).
   if (!withWebcam || process.platform !== "win32" || webcamGaveUp) return screen;
   if (!(await ensureFfmpeg())) return screen;
