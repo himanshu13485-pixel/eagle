@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, Injectable, Logger, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcryptjs";
 import { createHash, randomBytes } from "crypto";
@@ -9,8 +9,15 @@ import type { LoginResponse } from "@eagle/shared";
 const DASHBOARD_URL = process.env.DASHBOARD_URL || "http://localhost:5173";
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
+/** Local-dev escape hatch for working without a mail server. Requires an explicit
+ *  opt-in AND a non-production build: either one alone is not enough. */
+const ALLOW_DEV_RESET_LINK =
+  process.env.ALLOW_DEV_RESET_LINK === "true" && process.env.NODE_ENV !== "production";
+
 @Injectable()
 export class AuthService {
+  private readonly log = new Logger("Auth");
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
@@ -35,8 +42,17 @@ export class AuthService {
     return { ...tokens, user: { id: user.id, email: user.email, name: user.name, role: user.role as never, orgId: org.id, orgName: org.name } };
   }
 
-  /** Start a password reset — always returns ok (no account enumeration). In dry mode
-   *  (no SMTP) the reset link is returned so it can be used without a mail server. */
+  /**
+   * Start a password reset — always returns ok, so the response can't be used to
+   * discover which email addresses have accounts.
+   *
+   * The reset link is NEVER returned to the caller in production. It used to come
+   * back as `devLink` whenever SMTP was unconfigured, which made
+   * `POST /auth/forgot-password {email}` a one-request account takeover for any
+   * user on the platform — and an account-existence oracle besides, since the
+   * field was only present for real accounts. The local-dev convenience now needs
+   * an explicit opt-in that cannot be switched on by accident in production.
+   */
   async forgotPassword(email: string): Promise<{ ok: true; devLink?: string }> {
     const user = await this.prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } });
     if (!user) return { ok: true };
@@ -47,7 +63,13 @@ export class AuthService {
     const link = `${DASHBOARD_URL}/reset?token=${raw}`;
     const html = `<p>Hi ${user.name},</p><p>Reset your Workk password with the link below (valid for 1 hour):</p><p><a href="${link}">${link}</a></p><p>If you didn't request this, you can ignore this email.</p>`;
     const res = await this.mail.send([user.email], "Reset your Workk password", html);
-    return res.skipped ? { ok: true, devLink: link } : { ok: true };
+    if (res.skipped) {
+      this.log.error(
+        `Password reset requested for ${user.email} but no email was sent (SMTP not configured). ` +
+          "Set SMTP_HOST so users can actually reset their own passwords.",
+      );
+    }
+    return res.skipped && ALLOW_DEV_RESET_LINK ? { ok: true, devLink: link } : { ok: true };
   }
 
   async resetPassword(token: string, password: string): Promise<{ ok: true }> {

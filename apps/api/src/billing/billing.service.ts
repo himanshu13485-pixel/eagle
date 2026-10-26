@@ -64,8 +64,15 @@ export class BillingService {
     return { status, applied: false };
   }
 
-  /** DRY mode only: simulate a successful payment (no real gateway configured). */
+  /**
+   * Local-dev only: simulate a successful payment with no real gateway.
+   *
+   * Gated on NODE_ENV as well as on the gateway config — relying on "no Cashfree
+   * keys" alone meant that a production deploy that hadn't finished its payment
+   * setup handed every customer a free upgrade button.
+   */
   async devConfirm(orgId: string, orderId: string) {
+    if (process.env.NODE_ENV === "production") throw new NotFoundException();
     if (this.cashfree.configured) throw new BadRequestException("Live gateway configured — use the real checkout.");
     const order = await this.prisma.paymentOrder.findFirst({ where: { cfOrderId: orderId, orgId } });
     if (!order) throw new NotFoundException("Order not found");

@@ -5,7 +5,6 @@ import { api } from "../lib/api";
 export function ForgotPassword() {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
-  const [devLink, setDevLink] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -13,11 +12,17 @@ export function ForgotPassword() {
     e.preventDefault();
     setBusy(true); setError("");
     try {
-      const r = await api<{ ok: true; devLink?: string }>("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) });
-      setDevLink(r.devLink ?? null);
+      // The reset link only ever arrives by email. It used to be rendered here
+      // when the server had no SMTP, which handed anyone a takeover link for any
+      // address they typed in.
+      await api("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) });
       setSent(true);
     } catch (err) {
-      setError(err instanceof Error && err.message.includes("fetch") ? "Can't reach the API on :4000." : "Something went wrong.");
+      setError(
+        err instanceof Error && err.message.includes("fetch")
+          ? "We couldn't reach Workk. Check your connection and try again."
+          : "Something went wrong. Please try again.",
+      );
     } finally { setBusy(false); }
   }
 
@@ -29,12 +34,7 @@ export function ForgotPassword() {
         {sent ? (
           <div className="mt-4 space-y-4">
             <p className="text-gray-300">If an account exists for <b>{email}</b>, we've sent a reset link. Check your inbox.</p>
-            {devLink && (
-              <div className="rounded-xl bg-amber-400/10 p-3 text-sm">
-                <p className="mb-1 font-semibold text-amber-300">Dev mode (no SMTP): use this link</p>
-                <Link to={devLink.replace(/^https?:\/\/[^/]+/, "")} className="break-all text-amber-300 underline">{devLink}</Link>
-              </div>
-            )}
+            <p className="text-sm text-gray-400">The link is valid for one hour. If it doesn't arrive in a few minutes, check your spam folder.</p>
             <Link to="/login" className="inline-block text-sm font-semibold text-amber-400 hover:underline">← Back to login</Link>
           </div>
         ) : (

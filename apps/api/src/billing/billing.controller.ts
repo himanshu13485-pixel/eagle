@@ -85,17 +85,11 @@ export class BillingController {
     return this.billing.invoice(u.orgId, id);
   }
 
-  // ---- manual (super-admin comp / dev) ----
-  @Post("tier")
-  async setTier(@CurrentUser() u: RequestUser, @Body() dto: TierDto) {
-    await this.ensure(u.orgId);
-    return this.prisma.subscription.update({ where: { orgId: u.orgId }, data: { tier: dto.tier } });
-  }
-  @Post("seats")
-  async setSeats(@CurrentUser() u: RequestUser, @Body() dto: SeatsDto) {
-    await this.ensure(u.orgId);
-    return this.prisma.subscription.update({ where: { orgId: u.orgId }, data: { seats: dto.seats } });
-  }
+  // NOTE: there used to be POST /billing/tier and POST /billing/seats here,
+  // commented "super-admin comp / dev" but guarded only by JwtAuthGuard — so any
+  // signed-in customer could grant themselves the top tier and any number of
+  // seats for free. Comping a plan belongs to the platform-guarded
+  // PATCH /api/admin/clients/:id, which is where it now lives exclusively.
 }
 
 // Public webhook (no auth) — Cashfree calls this; we re-verify with the API before applying.
