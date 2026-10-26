@@ -6,17 +6,22 @@ import { PrismaService } from "../prisma/prisma.service";
 import { MailService } from "../mail/mail.service";
 import type { LoginResponse } from "@eagle/shared";
 
-const DASHBOARD_URL = process.env.DASHBOARD_URL || "http://localhost:5173";
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
-
-/** Local-dev escape hatch for working without a mail server. Requires an explicit
- *  opt-in AND a non-production build: either one alone is not enough. */
-const ALLOW_DEV_RESET_LINK =
-  process.env.ALLOW_DEV_RESET_LINK === "true" && process.env.NODE_ENV !== "production";
 
 @Injectable()
 export class AuthService {
   private readonly log = new Logger("Auth");
+
+  // Read as class fields, not module-level consts: ConfigModule loads .env
+  // while the module graph is built, which is after this file's imports are
+  // evaluated — a top-level read gets undefined and silently takes the
+  // fallback, which here would put localhost into real reset emails.
+  private readonly dashboardUrl = process.env.DASHBOARD_URL || "http://localhost:5173";
+
+  /** Local-dev escape hatch for working without a mail server. Requires an
+   *  explicit opt-in AND a non-production build: either alone is not enough. */
+  private readonly allowDevResetLink =
+    process.env.ALLOW_DEV_RESET_LINK === "true" && process.env.NODE_ENV !== "production";
 
   constructor(
     private readonly prisma: PrismaService,
@@ -60,7 +65,7 @@ export class AuthService {
     await this.prisma.passwordReset.create({
       data: { userId: user.id, tokenHash: sha256(raw), expiresAt: new Date(Date.now() + 3600_000) },
     });
-    const link = `${DASHBOARD_URL}/reset?token=${raw}`;
+    const link = `${this.dashboardUrl}/reset?token=${raw}`;
     const html = `<p>Hi ${user.name},</p><p>Reset your Workk password with the link below (valid for 1 hour):</p><p><a href="${link}">${link}</a></p><p>If you didn't request this, you can ignore this email.</p>`;
     const res = await this.mail.send([user.email], "Reset your Workk password", html);
     if (res.skipped) {
@@ -69,7 +74,7 @@ export class AuthService {
           "Set SMTP_HOST so users can actually reset their own passwords.",
       );
     }
-    return res.skipped && ALLOW_DEV_RESET_LINK ? { ok: true, devLink: link } : { ok: true };
+    return res.skipped && this.allowDevResetLink ? { ok: true, devLink: link } : { ok: true };
   }
 
   async resetPassword(token: string, password: string): Promise<{ ok: true }> {

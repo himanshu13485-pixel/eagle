@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { mkdir, writeFile, unlink, stat, rename, copyFile } from "fs/promises";
 import { createReadStream, type ReadStream } from "fs";
 import { dirname, join } from "path";
@@ -18,6 +19,20 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
  */
 @Injectable()
 export class StorageService {
+  /**
+   * Key for signing local file URLs.
+   *
+   * Read as a class field, not a module-level const: ConfigModule loads .env
+   * while the module graph is being built, which is *after* this file's imports
+   * have been evaluated. A top-level read saw undefined and quietly fell back
+   * to the random value below, so every signed URL failed verification.
+   *
+   * The random fallback itself is deliberate — with no secret configured, links
+   * stop working on restart rather than being forgeable from a guessable value.
+   */
+  private readonly urlSecret =
+    process.env.FILE_URL_SECRET || process.env.JWT_ACCESS_SECRET || randomBytes(32).toString("hex");
+
   private readonly driver = process.env.STORAGE_DRIVER || "local";
   private readonly dir = process.env.STORAGE_DIR || join(process.cwd(), "storage");
   private readonly publicBase =
@@ -54,7 +69,26 @@ export class StorageService {
         expiresIn: expiresSec,
       });
     }
-    return `${this.publicBase}/api/files/${key}`;
+    // The local driver used to hand back a bare static URL. /api/files was
+    // mounted with no auth at all, so anyone holding (or guessing) the path
+    // could read an employee's screenshots, forever. Local URLs are now signed
+    // and expiring, the same shape of guarantee S3 presigning gives.
+    const expires = Math.floor(Date.now() / 1000) + expiresSec;
+    const sig = this.signKey(key, expires);
+    return `${this.publicBase}/api/files/${key}?e=${expires}&s=${sig}`;
+  }
+
+  private signKey(key: string, expires: number): string {
+    return createHmac("sha256", this.urlSecret).update(`${key}\n${expires}`).digest("base64url");
+  }
+
+  /** Validate a signed file URL. Returns false for a bad, altered or expired link. */
+  verifyFileUrl(key: string, expires: string | undefined, sig: string | undefined): boolean {
+    const exp = Number(expires);
+    if (!sig || !Number.isFinite(exp) || exp < Math.floor(Date.now() / 1000)) return false;
+    const want = Buffer.from(this.signKey(key, exp));
+    const got = Buffer.from(sig);
+    return want.length === got.length && timingSafeEqual(want, got);
   }
 
   /**

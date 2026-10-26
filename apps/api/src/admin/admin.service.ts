@@ -34,6 +34,24 @@ export class AdminService {
     return orgs.map((o) => o.id);
   }
 
+  /**
+   * The `orgId` filter for a cross-client listing: the caller's own scope,
+   * optionally narrowed to one client.
+   *
+   * Call sites used to do `if (scope) where.orgId = { in: scope }` followed by
+   * `if (q.clientId) where.orgId = q.clientId` — the second line threw the
+   * scope away, so a salesperson could read any other client's screenshots,
+   * data requests, tickets and invoices just by passing that client's id.
+   */
+  private async orgFilter(a: RequestAdmin, clientId?: string): Promise<string | { in: string[] } | undefined> {
+    const scope = await this.scopedOrgIds(a);
+    if (clientId) {
+      if (scope && !scope.includes(clientId)) throw new ForbiddenException("That client is not assigned to you.");
+      return clientId;
+    }
+    return scope ? { in: scope } : undefined;
+  }
+
   async login(email: string, password: string) {
     const admin = await this.prisma.platformAdmin.findUnique({ where: { email: email.toLowerCase() } });
     if (!admin || !admin.active || !bcrypt.compareSync(password, admin.passwordHash)) {
@@ -163,9 +181,8 @@ export class AdminService {
     const page = Math.max(1, Number(q.page ?? 1));
     const pageSize = Math.min(500, Math.max(1, Number(q.pageSize ?? 24))); // up to 500 so Work Replay can load a full day
     const where: any = {};
-    const scope = await this.scopedOrgIds(a);
-    if (scope) where.orgId = { in: scope };
-    if (q.clientId) where.orgId = q.clientId;
+    const orgId = await this.orgFilter(a, q.clientId);
+    if (orgId !== undefined) where.orgId = orgId;
     if (q.employeeId) where.employeeId = q.employeeId;
     if (q.trigger) where.trigger = q.trigger;
     if (q.from || q.to) {
@@ -310,9 +327,8 @@ export class AdminService {
     const page = Math.max(1, Number(q.page ?? 1));
     const pageSize = Math.min(100, Math.max(1, Number(q.pageSize ?? 25)));
     const where: any = {};
-    const scope = await this.scopedOrgIds(a);
-    if (scope) where.orgId = { in: scope };
-    if (q.clientId) where.orgId = q.clientId;
+    const orgId = await this.orgFilter(a, q.clientId);
+    if (orgId !== undefined) where.orgId = orgId;
     if (!q.includeAutomated) where.source = "USER";
     if (q.status && q.status !== "ALL") where.status = q.status;
     if (q.action && q.action !== "ALL") where.action = q.action;
@@ -323,9 +339,12 @@ export class AdminService {
     ]);
     const empIds = rows.map((r) => r.targetEmployeeId).filter(Boolean) as string[];
     const teamIds = rows.map((r) => r.targetTeamId).filter(Boolean) as string[];
+    // Resolve labels only within the orgs these rows belong to, so a row
+    // carrying a foreign target id can't surface another tenant's name.
+    const rowOrgIds = [...new Set(rows.map((r) => r.orgId))];
     const [emps, teams] = await Promise.all([
-      this.prisma.employee.findMany({ where: { id: { in: empIds } }, select: { id: true, name: true } }),
-      this.prisma.team.findMany({ where: { id: { in: teamIds } }, select: { id: true, name: true } }),
+      this.prisma.employee.findMany({ where: { id: { in: empIds }, orgId: { in: rowOrgIds } }, select: { id: true, name: true } }),
+      this.prisma.team.findMany({ where: { id: { in: teamIds }, orgId: { in: rowOrgIds } }, select: { id: true, name: true } }),
     ]);
     const empMap = new Map(emps.map((e) => [e.id, e.name]));
     const teamMap = new Map(teams.map((t) => [t.id, t.name]));
@@ -413,16 +432,18 @@ export class AdminService {
 
   /** Cross-client support inbox: tickets from every client, with account labels + filters. */
   async listSupport(a: RequestAdmin, q: { clientId?: string; status?: string; kind?: string }) {
-    const scope = await this.scopedOrgIds(a);
     const where: any = {};
-    if (scope) where.orgId = { in: scope };
-    if (q.clientId) where.orgId = q.clientId;
+    const scopeOnly = await this.orgFilter(a);
+    const orgId = await this.orgFilter(a, q.clientId);
+    if (orgId !== undefined) where.orgId = orgId;
     if (q.status && q.status !== "ALL") where.status = q.status;
     if (q.kind && q.kind !== "ALL") where.kind = q.kind;
 
     const [rows, byStatus] = await Promise.all([
       this.prisma.supportRequest.findMany({ where, orderBy: { createdAt: "desc" }, take: 200, include: { org: { select: { name: true } } } }),
-      this.prisma.supportRequest.groupBy({ by: ["status"], where: scope ? { orgId: { in: scope } } : {}, _count: true }),
+      // Status tab counts span the caller's whole scope, deliberately ignoring
+      // any ?clientId= narrowing applied to the list itself.
+      this.prisma.supportRequest.groupBy({ by: ["status"], where: scopeOnly !== undefined ? { orgId: scopeOnly } : {}, _count: true }),
     ]);
     const counts = Object.fromEntries(byStatus.map((r) => [r.status, r._count]));
     const items = rows.map((r) => ({

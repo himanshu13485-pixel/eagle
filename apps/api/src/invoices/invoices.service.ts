@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { ForbiddenException, Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 
 export interface InvoiceInput {
@@ -95,8 +95,13 @@ export class InvoicesService {
   /** Admin: every invoice, optionally scoped to a set of orgs + filters. */
   async listAll(f: { orgIds?: string[] | null; clientId?: string; status?: string; from?: string; to?: string }) {
     const where: any = {};
-    if (f.orgIds) where.orgId = { in: f.orgIds };
+    // clientId NARROWS the caller's scope; it must never replace it, or a
+    // salesperson could read any client's invoices by passing that client's id.
+    if (f.clientId && f.orgIds && !f.orgIds.includes(f.clientId)) {
+      throw new ForbiddenException("That client is not assigned to you.");
+    }
     if (f.clientId) where.orgId = f.clientId;
+    else if (f.orgIds) where.orgId = { in: f.orgIds };
     if (f.status && f.status !== "ALL") where.status = f.status;
     if (f.from || f.to) {
       where.issuedAt = {};

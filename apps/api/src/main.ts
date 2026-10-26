@@ -12,9 +12,10 @@ async function bootstrap() {
     new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: false }),
   );
 
-  // Serve locally-stored screenshots at /api/files/<key>
-  const storageDir = process.env.STORAGE_DIR || join(process.cwd(), "storage");
-  app.useStaticAssets(storageDir, { prefix: "/api/files/" });
+  // NOTE: locally-stored screenshots used to be mounted here as static assets
+  // under /api/files/ — no auth, no expiry, so the URL alone granted permanent
+  // access to an employee's screen. They are now served by FilesController,
+  // which requires the signed, expiring URL that StorageService hands out.
 
   const port = Number(process.env.API_PORT ?? 4000);
   await app.listen(port);

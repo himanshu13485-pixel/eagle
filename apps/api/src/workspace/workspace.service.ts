@@ -87,9 +87,11 @@ export class WorkspaceService {
 
     const empIds = rows.map((r) => r.targetEmployeeId).filter(Boolean) as string[];
     const teamIds = rows.map((r) => r.targetTeamId).filter(Boolean) as string[];
+    // Scope the label lookups by org too: a request row could carry a foreign
+    // id, and resolving it unscoped would read another tenant's name back out.
     const [emps, teams] = await Promise.all([
-      this.prisma.employee.findMany({ where: { id: { in: empIds } }, select: { id: true, name: true } }),
-      this.prisma.team.findMany({ where: { id: { in: teamIds } }, select: { id: true, name: true } }),
+      this.prisma.employee.findMany({ where: { id: { in: empIds }, orgId }, select: { id: true, name: true } }),
+      this.prisma.team.findMany({ where: { id: { in: teamIds }, orgId }, select: { id: true, name: true } }),
     ]);
     const empMap = new Map(emps.map((e) => [e.id, e.name]));
     const teamMap = new Map(teams.map((t) => [t.id, t.name]));
@@ -141,6 +143,17 @@ export class WorkspaceService {
     });
     if (active >= ACTIVE_REQUEST_LIMIT) {
       throw new BadRequestException(`You have reached the active request limit (${ACTIVE_REQUEST_LIMIT}). Wait for one to complete.`);
+    }
+
+    // Reject a target that isn't ours before storing it, rather than relying on
+    // the worker's own org scoping to make a foreign id harmless downstream.
+    if (d.targetEmployeeId) {
+      const emp = await this.prisma.employee.findFirst({ where: { id: d.targetEmployeeId, orgId }, select: { id: true } });
+      if (!emp) throw new NotFoundException("Employee not found");
+    }
+    if (d.targetTeamId) {
+      const team = await this.prisma.team.findFirst({ where: { id: d.targetTeamId, orgId }, select: { id: true } });
+      if (!team) throw new NotFoundException("Team not found");
     }
 
     return this.prisma.dataRequest.create({

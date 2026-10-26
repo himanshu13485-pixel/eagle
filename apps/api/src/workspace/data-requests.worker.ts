@@ -184,7 +184,7 @@ export class DataRequestsWorker {
     try {
       const names = new Map(
         (await this.prisma.employee.findMany({
-          where: { id: { in: employeeIds } },
+          where: { id: { in: employeeIds }, orgId: req.orgId },
           select: { id: true, name: true },
         })).map((e) => [e.id, e.name]),
       );
