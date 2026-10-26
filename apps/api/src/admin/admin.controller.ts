@@ -1,8 +1,11 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards, Ip, Req } from "@nestjs/common";
 import { IsBoolean, IsEmail, IsIn, IsInt, IsOptional, IsString, Min, MinLength } from "class-validator";
 import { AdminService } from "./admin.service";
 import { CurrentAdmin, RequestAdmin } from "./current-admin.decorator";
 import { PlatformAuthGuard, assertSuperAdmin } from "./platform-auth.guard";
+import { RateLimiter, RATE_RULES } from "../common/rate-limit";
+import { RateLimit, RateLimitGuard } from "../common/rate-limit.guard";
+import type { Request } from "express";
 
 const ROLES = ["SUPER_ADMIN", "SUB_ADMIN", "SALESPERSON"];
 const TIERS = ["BASIC", "PROFESSIONAL", "BUSINESS"];
@@ -53,11 +56,18 @@ class UpdateStaffDto {
 
 @Controller("admin")
 export class AdminController {
-  constructor(private readonly admin: AdminService) {}
+  constructor(
+    private readonly admin: AdminService,
+    private readonly rate: RateLimiter,
+  ) {}
 
   @Post("auth/login")
-  login(@Body() dto: AdminLoginDto) {
-    return this.admin.login(dto.email, dto.password);
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ rule: RATE_RULES.login, bucket: "admin-login", byBodyField: "email" })
+  async login(@Body() dto: AdminLoginDto, @Req() req: Request) {
+    const res = await this.admin.login(dto.email, dto.password);
+    this.rate.clear(...((req as unknown as { rateLimitKeys?: string[] }).rateLimitKeys ?? []));
+    return res;
   }
 
   @UseGuards(PlatformAuthGuard)

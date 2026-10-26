@@ -5,6 +5,7 @@ import { createHash, randomBytes } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
 import { MailService } from "../mail/mail.service";
 import type { LoginResponse } from "@eagle/shared";
+import { accessSecret, refreshSecret } from "../config/secrets";
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -114,7 +115,7 @@ export class AuthService {
   async refresh(refreshToken: string) {
     try {
       const payload = await this.jwt.verifyAsync(refreshToken, {
-        secret: process.env.JWT_REFRESH_SECRET ?? "change-me-refresh",
+        secret: refreshSecret(),
       });
       return this.issueTokens(payload.sub, payload.orgId, payload.role, payload.email);
     } catch {
@@ -125,11 +126,11 @@ export class AuthService {
   private async issueTokens(sub: string, orgId: string, role: string, email: string) {
     const payload = { sub, orgId, role, email };
     const accessToken = await this.jwt.signAsync(payload, {
-      secret: process.env.JWT_ACCESS_SECRET ?? "change-me-access",
+      secret: accessSecret(),
       expiresIn: process.env.JWT_ACCESS_TTL ?? "15m",
     });
     const refreshToken = await this.jwt.signAsync(payload, {
-      secret: process.env.JWT_REFRESH_SECRET ?? "change-me-refresh",
+      secret: refreshSecret(),
       expiresIn: process.env.JWT_REFRESH_TTL ?? "30d",
     });
     return { accessToken, refreshToken };

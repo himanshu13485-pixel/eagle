@@ -56,6 +56,35 @@ function tryRefresh(): Promise<boolean> {
   return refreshing;
 }
 
+/**
+ * Turn a server response into something worth showing a customer.
+ *
+ * `api()` used to throw the raw response body, which pages then rendered —
+ * so a 500 put `{"statusCode":500,"message":"..."}` on screen, including on
+ * the login page.
+ */
+export function friendlyError(text: string, status: number): string {
+  let message = text?.trim() ?? "";
+  if (message.startsWith("{") || message.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(message);
+      const m = parsed?.message ?? parsed?.error;
+      message = Array.isArray(m) ? m.join(" ") : typeof m === "string" ? m : "";
+    } catch {
+      message = "";
+    }
+  }
+  // Nest's defaults for these carry no useful detail, and a 5xx body is for logs.
+  if (status >= 500 || !message || /^(Internal Server Error|Bad Request|Forbidden)$/i.test(message)) {
+    if (status >= 500) return "Something went wrong on our end. Please try again in a moment.";
+    if (status === 403) return "You don't have permission to do that.";
+    if (status === 404) return "We couldn't find that.";
+    if (status === 429) return "Too many attempts. Please wait a moment and try again.";
+    return message || "Something went wrong. Please try again.";
+  }
+  return message;
+}
+
 function sendToLogin() {
   clearTokens();
   // BASE_URL, not a bare "/login": the app is served from a sub-path in
@@ -88,9 +117,18 @@ export async function api<T>(path: string, options: RequestInit = {}, _retried =
     sendToLogin();
     throw new Error("Unauthorized");
   }
+  // The subscription lapsed or the account was suspended. Every page would
+  // otherwise fail its own way and read as "the app is broken"; send the user
+  // to Billing once, where the reason and the way out are on screen.
+  if (res.status === 402) {
+    const billingUrl = `${import.meta.env.BASE_URL}billing`.replace(/\/{2,}/g, "/");
+    if (location.pathname !== billingUrl) location.href = billingUrl;
+    throw new Error("Your Workk subscription has expired. Renew it from Billing to get back in.");
+  }
+
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(text || `Request failed: ${res.status}`);
+    throw new Error(friendlyError(text, res.status));
   }
   if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;

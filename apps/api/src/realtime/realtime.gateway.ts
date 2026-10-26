@@ -12,6 +12,7 @@ import * as bcrypt from "bcryptjs";
 import { JwtService } from "@nestjs/jwt";
 import { PrismaService } from "../prisma/prisma.service";
 import { RT_EVENTS, type LiveFramePayload, type LiveWatchPayload } from "@eagle/shared";
+import { accessSecret } from "../config/secrets";
 
 /**
  * Realtime hub for presence, screenshot notifications, and on-demand live screen streaming.
@@ -47,7 +48,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const adminToken = client.handshake.auth?.adminToken as string | undefined;
     if (adminToken) {
       try {
-        const p: any = await this.jwt.verifyAsync(adminToken, { secret: process.env.JWT_ACCESS_SECRET ?? "change-me-access" });
+        const p: any = await this.jwt.verifyAsync(adminToken, { secret: accessSecret() });
         if (p?.scope !== "platform") return client.disconnect();
         this.adminMeta.set(client.id, { adminId: p.sub, role: p.role });
       } catch {
@@ -64,7 +65,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       const userToken = client.handshake.auth?.token as string | undefined;
       if (!userToken) return client.disconnect();
       try {
-        const p: any = await this.jwt.verifyAsync(userToken, { secret: process.env.JWT_ACCESS_SECRET ?? "change-me-access" });
+        const p: any = await this.jwt.verifyAsync(userToken, { secret: accessSecret() });
         if (p?.scope === "platform" || !p?.orgId) return client.disconnect();
         this.viewerOrg.set(client.id, p.orgId);
         client.join(`org:${p.orgId}`);
@@ -181,7 +182,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     const t = client.handshake.auth?.adminToken as string | undefined;
     if (!t) return null;
     try {
-      const p: any = await this.jwt.verifyAsync(t, { secret: process.env.JWT_ACCESS_SECRET ?? "change-me-access" });
+      const p: any = await this.jwt.verifyAsync(t, { secret: accessSecret() });
       if (p?.scope !== "platform") return null;
       const meta = { adminId: p.sub, role: p.role };
       this.adminMeta.set(client.id, meta);

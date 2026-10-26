@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { join } from "path";
 import { ScheduleModule } from "@nestjs/schedule";
+import { CommonModule } from "./common/common.module";
 import { PrismaModule } from "./prisma/prisma.module";
 import { StorageModule } from "./storage/storage.module";
 import { RealtimeModule } from "./realtime/realtime.module";
@@ -29,6 +30,7 @@ import { InvoicesModule } from "./invoices/invoices.module";
     // (__dirname is apps/api/dist at runtime → ../.env = apps/api/.env).
     ConfigModule.forRoot({ isGlobal: true, envFilePath: [join(__dirname, "..", ".env"), ".env"] }),
     ScheduleModule.forRoot(),
+    CommonModule,
     PrismaModule,
     StorageModule,
     RealtimeModule,

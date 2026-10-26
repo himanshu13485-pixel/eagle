@@ -7,6 +7,8 @@ import { StorageService } from "../storage/storage.service";
 import { QuotaService } from "../storage/quota.service";
 import { InvoicesService } from "../invoices/invoices.service";
 import type { RequestAdmin } from "./current-admin.decorator";
+import { accessSecret, refreshSecret } from "../config/secrets";
+import { OrgAccessInterceptor } from "../common/org-access.interceptor";
 
 @Injectable()
 export class AdminService {
@@ -16,6 +18,7 @@ export class AdminService {
     private readonly storage: StorageService,
     private readonly quota: QuotaService,
     private readonly invoices: InvoicesService,
+    private readonly orgAccess: OrgAccessInterceptor,
   ) {}
 
   private planAmount(tier: string, cycle: string, seats: number): number {
@@ -59,7 +62,7 @@ export class AdminService {
     }
     const accessToken = await this.jwt.signAsync(
       { sub: admin.id, role: admin.role, email: admin.email, scope: "platform" },
-      { secret: process.env.JWT_ACCESS_SECRET ?? "change-me-access", expiresIn: process.env.JWT_ADMIN_TTL ?? "1d" },
+      { secret: accessSecret(), expiresIn: process.env.JWT_ADMIN_TTL ?? "1d" },
     );
     return { accessToken, admin: { id: admin.id, name: admin.name, email: admin.email, role: admin.role } };
   }
@@ -601,8 +604,8 @@ export class AdminService {
     const payload = { sub: owner.id, orgId: org.id, role: owner.role, email: owner.email, actAs: a.adminId };
     const sign = (secret: string, expiresIn: string) =>
       this.jwt.signAsync(payload, { secret, expiresIn });
-    const accessToken = await sign(process.env.JWT_ACCESS_SECRET ?? "change-me-access", process.env.JWT_IMPERSONATE_TTL ?? "8h");
-    const refreshToken = await sign(process.env.JWT_REFRESH_SECRET ?? "change-me-refresh", "8h");
+    const accessToken = await sign(accessSecret(), process.env.JWT_IMPERSONATE_TTL ?? "8h");
+    const refreshToken = await sign(refreshSecret(), "8h");
     return {
       accessToken,
       refreshToken,
@@ -624,6 +627,9 @@ export class AdminService {
       const sub = { ...(d.tier ? { tier: d.tier } : {}), ...(d.seats ? { seats: d.seats } : {}), ...(d.cycle ? { cycle: d.cycle } : {}) };
       await this.prisma.subscription.upsert({ where: { orgId: id }, create: { orgId: id, ...sub }, update: sub });
     }
+    // Suspending, un-suspending or re-planning must bite at once, not after
+    // the entitlement cache's TTL.
+    this.orgAccess.invalidate(id);
     return { ok: true };
   }
 

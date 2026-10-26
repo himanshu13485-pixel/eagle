@@ -1,5 +1,6 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
+import { accessSecret } from "../config/secrets";
 
 /** Guards platform (Super Admin) routes: requires a token minted with scope "platform". */
 @Injectable()
@@ -12,7 +13,7 @@ export class PlatformAuthGuard implements CanActivate {
     const token = header.startsWith("Bearer ") ? header.slice(7) : null;
     if (!token) throw new UnauthorizedException("Missing token");
     try {
-      const p = await this.jwt.verifyAsync(token, { secret: process.env.JWT_ACCESS_SECRET ?? "change-me-access" });
+      const p = await this.jwt.verifyAsync(token, { secret: accessSecret() });
       if (p.scope !== "platform") throw new Error("not a platform token");
       req.admin = { adminId: p.sub, role: p.role, email: p.email };
       return true;

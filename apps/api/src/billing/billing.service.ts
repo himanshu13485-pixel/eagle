@@ -4,6 +4,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { PLANS, PlanTier } from "@eagle/shared";
 import { CashfreeService } from "./cashfree.service";
 import { InvoicesService } from "../invoices/invoices.service";
+import { OrgAccessInterceptor } from "../common/org-access.interceptor";
 
 @Injectable()
 export class BillingService {
@@ -12,6 +13,7 @@ export class BillingService {
     private readonly prisma: PrismaService,
     private readonly cashfree: CashfreeService,
     private readonly invoices: InvoicesService,
+    private readonly orgAccess: OrgAccessInterceptor,
   ) {}
 
   private priceFor(tier: string, cycle: string): number {
@@ -107,6 +109,8 @@ export class BillingService {
       update: { tier: order.tier, cycle: order.cycle, seats: order.seats, validUntil: base },
     });
     await this.prisma.paymentOrder.update({ where: { id: order.id }, data: { status: "PAID", paidAt: now } });
+    // Let the customer back in immediately rather than after the cache TTL.
+    this.orgAccess.invalidate(order.orgId);
     // Issue the invoice for this payment (idempotent per order).
     await this.invoices.fromPaidOrder({
       orgId: order.orgId, tier: order.tier, cycle: order.cycle, seats: order.seats,
