@@ -263,10 +263,13 @@ model ActivityCategory {
   category   String // PRODUCTIVE | UNPRODUCTIVE | NEUTRAL
   createdAt  DateTime     @default(now())
 
-  // One verdict per target per scope. employeeId is nullable, and most
-  // databases treat NULLs as distinct in a unique index, so org-wide rows are
-  // de-duplicated in the service rather than relied on here.
-  @@unique([orgId, employeeId, groupKey, type, pattern])
+  // Deliberately no unique constraint across (employeeId, groupKey, type,
+  // pattern): all four are nullable and Postgres treats NULLs as distinct in a
+  // unique index, so it never enforced one-verdict-per-target anyway. It did
+  // break a deploy — `prisma db push` refuses to add a unique constraint
+  // without --accept-data-loss, so the API crash-looped on the way in.
+  // CategoriesService.upsertOverride finds the existing row and updates it,
+  // which is what actually keeps these unique.
   @@index([orgId])
   @@index([orgId, employeeId])
 }

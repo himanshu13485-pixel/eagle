@@ -197,9 +197,16 @@ export class CategoriesService {
   }
 
   /**
-   * employeeId is nullable, and most databases treat NULLs as distinct in a
-   * unique index, so the org-wide row can't be upserted on the composite key —
-   * find it first, then update or create.
+   * Store one verdict for one target.
+   *
+   * Not a real upsert: the target columns are nullable, so there is no unique
+   * key to upsert against (and a unique index over nullable columns wouldn't
+   * enforce anything in Postgres anyway). Find, then update or create.
+   *
+   * Because that read-then-write isn't atomic, two clicks landing together can
+   * both create a row. Harmless for classification — they carry the same
+   * verdict and the later one wins — but it would show twice in the rules
+   * list, so any extras are tidied up here rather than left to accumulate.
    */
   private async upsertOverride(
     orgId: string,
@@ -208,11 +215,15 @@ export class CategoriesService {
     employeeId?: string | null,
   ) {
     const where = { orgId, employeeId: employeeId ?? null, ...target };
-    const existing = await this.prisma.activityCategory.findFirst({ where });
-    if (existing) {
-      return this.prisma.activityCategory.update({ where: { id: existing.id }, data: { category } });
+    const existing = await this.prisma.activityCategory.findMany({ where, orderBy: { createdAt: "asc" } });
+    if (!existing.length) {
+      return this.prisma.activityCategory.create({ data: { ...where, category } });
     }
-    return this.prisma.activityCategory.create({ data: { ...where, category } });
+    const [keep, ...extras] = existing;
+    if (extras.length) {
+      await this.prisma.activityCategory.deleteMany({ where: { id: { in: extras.map((e) => e.id) } } });
+    }
+    return this.prisma.activityCategory.update({ where: { id: keep.id }, data: { category } });
   }
 
   private async assertEmployee(orgId: string, employeeId?: string | null) {
