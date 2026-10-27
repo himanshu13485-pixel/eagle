@@ -343,21 +343,63 @@ const CATEGORY_LABEL: Record<string, string> = {
 };
 const CATEGORIES = [ActivityCategory.PRODUCTIVE, ActivityCategory.NEUTRAL, ActivityCategory.UNPRODUCTIVE];
 
+/** A shipped group of apps/sites — "Social media", "Personal messaging" — with
+ *  the verdict that currently applies and where that verdict came from. */
+interface CategoryGroupRow {
+  key: string;
+  label: string;
+  description: string;
+  defaultCategory: ActivityCategory;
+  category: ActivityCategory;
+  source: "default" | "organisation" | "employee";
+  examples: string[];
+  appCount: number;
+  siteCount: number;
+}
+
 function ProductivityTab() {
+  // "" = the whole organisation. Picking a person shows and edits that
+  // person's view of the same groups, so "YouTube is fine for the one who
+  // runs our channel" doesn't change it for everyone else.
+  const [scope, setScope] = useState("");
+  const [employees, setEmployees] = useState<EmployeeDto[]>([]);
+  const [groups, setGroups] = useState<CategoryGroupRow[] | null>(null);
   const [rows, setRows] = useState<Observed[] | null>(null);
   const [filter, setFilter] = useState<"all" | "app" | "web">("all");
   const [q, setQ] = useState("");
   const [toast, setToast] = useState("");
 
-  const load = () => { api<Observed[]>("/categories/observed?days=30").then(setRows).catch(() => setRows([])); };
-  useEffect(load, []);
+  // Built as a full query string so each URL reads normally rather than
+  // needing a filler parameter to hang "&employeeId" off.
+  const scopeParam = scope ? `employeeId=${encodeURIComponent(scope)}` : "";
+  const scopeQuery = scope ? `&${scopeParam}` : "";
+  const scopeName = employees.find((e) => e.id === scope)?.name ?? "";
+
+  const load = () => {
+    api<CategoryGroupRow[]>(`/categories/groups${scope ? `?${scopeParam}` : ""}`).then(setGroups).catch(() => setGroups([]));
+    api<Observed[]>(`/categories/observed?days=30${scopeQuery}`).then(setRows).catch(() => setRows([]));
+  };
+  useEffect(load, [scope]);
+  useEffect(() => { api<EmployeeDto[]>("/employees").then(setEmployees).catch(() => {}); }, []);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 2500); return () => clearTimeout(t); }, [toast]);
 
+  async function setGroupCategory(g: CategoryGroupRow, category: ActivityCategory) {
+    // Optimistic: the list is long and a round-trip per click feels broken.
+    setGroups((cur) => cur?.map((x) => (x.key === g.key ? { ...x, category, source: scope ? "employee" : "organisation" } : x)) ?? cur);
+    try {
+      await api("/categories/groups", { method: "POST", body: JSON.stringify({ groupKey: g.key, category, ...(scope ? { employeeId: scope } : {}) }) });
+      // The observed list is classified through these rules, so it moves too.
+      api<Observed[]>(`/categories/observed?days=30${scopeQuery}`).then(setRows).catch(() => {});
+    } catch {
+      setToast("Couldn't save that — reloading.");
+      load();
+    }
+  }
+
   async function setCategory(row: Observed, category: ActivityCategory) {
-    // Optimistic: the list runs long and a round-trip per click feels broken.
     setRows((cur) => cur?.map((r) => (r.name === row.name && r.type === row.type ? { ...r, category, custom: true } : r)) ?? cur);
     try {
-      await api("/categories/rules", { method: "POST", body: JSON.stringify({ type: row.type, pattern: row.name, category }) });
+      await api("/categories/rules", { method: "POST", body: JSON.stringify({ type: row.type, pattern: row.name, category, ...(scope ? { employeeId: scope } : {}) }) });
     } catch {
       setToast("Couldn't save that — reloading.");
       load();
@@ -365,9 +407,13 @@ function ProductivityTab() {
   }
 
   async function resetAll() {
-    if (!confirm("Remove all your custom rules and go back to the defaults?")) return;
-    try { await api("/categories/reset", { method: "POST" }); load(); setToast("Back to defaults."); }
-    catch { setToast("Couldn't reset."); }
+    const what = scope ? `${scopeName}'s own rules` : "all your custom rules";
+    if (!confirm(`Remove ${what} and go back to ${scope ? "the company settings" : "the defaults"}?`)) return;
+    try {
+      await api(`/categories/reset${scope ? `?${scopeParam}` : ""}`, { method: "POST" });
+      load();
+      setToast(scope ? `${scopeName} follows the company settings again.` : "Back to defaults.");
+    } catch { setToast("Couldn't reset."); }
   }
 
   const shown = useMemo(() => {
@@ -383,13 +429,100 @@ function ProductivityTab() {
   const grand = totals.PRODUCTIVE + totals.UNPRODUCTIVE + totals.NEUTRAL;
   const share = (n: number) => (grand ? Math.round((n / grand) * 100) : 0);
 
-  if (!rows) return <div className="text-gray-400">Loading activity…</div>;
+  const overridden = (groups ?? []).filter((g) => g.source !== "default").length;
 
   return (
     <>
-      <Card title="What counts as productive" desc="Classify the apps and websites your team actually uses. This drives the Focus figure on Productivity Trends and the distraction list in emailed reports.">
-        {rows.length === 0 ? (
-          <p className="text-sm text-gray-400">No activity recorded in the last 30 days yet. Once agents report app and website usage, everything they use appears here to classify.</p>
+      <Card
+        title="Who these settings apply to"
+        desc="Set the rules for the whole company, or for one person when their job makes the usual answer wrong."
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          <select
+            value={scope}
+            onChange={(e) => { setScope(e.target.value); setGroups(null); setRows(null); }}
+            className="min-w-[14rem] rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold"
+          >
+            <option value="">Everyone in the company</option>
+            {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+          {scope ? (
+            <p className="text-sm text-gray-500">
+              Editing <b className="text-gray-800">{scopeName}</b> only. Anything left untouched follows the company settings.
+            </p>
+          ) : (
+            <p className="text-sm text-gray-500">Editing the company default, which everyone follows unless they have their own rule.</p>
+          )}
+        </div>
+      </Card>
+
+      <Card
+        title="Categories"
+        desc="Apps and websites are grouped so one decision covers all of them. Change a group here, or a single app or site in the list below."
+      >
+        {!groups ? (
+          <div className="text-gray-400">Loading categories…</div>
+        ) : (
+          <>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-gray-400">
+                {overridden === 0
+                  ? "Every group is on its shipped default."
+                  : `${overridden} group${overridden === 1 ? "" : "s"} changed from the default.`}
+              </p>
+              <button onClick={resetAll} className="rounded-xl border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50">
+                {scope ? `Clear ${scopeName}'s rules` : "Reset to defaults"}
+              </button>
+            </div>
+            <div className="grid gap-3 lg:grid-cols-2">
+              {groups.map((g) => (
+                <div key={g.key} className="rounded-xl border border-gray-100 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-semibold text-gray-900">{g.label}</span>
+                        {/* Saying where a verdict came from matters: otherwise
+                            you can't tell an inherited company rule from this
+                            person's own. */}
+                        {g.source === "employee" && <span className="rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-bold uppercase text-brand">This person</span>}
+                        {g.source === "organisation" && scope && <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-gray-500">Company</span>}
+                      </div>
+                      <p className="mt-0.5 text-xs text-gray-500">{g.description}</p>
+                      <p className="mt-1 truncate text-[11px] text-gray-400">
+                        {g.appCount + g.siteCount} items · {g.examples.join(", ")}…
+                      </p>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex gap-1">
+                    {CATEGORIES.map((c) => (
+                      <button
+                        key={c}
+                        onClick={() => setGroupCategory(g, c)}
+                        className={`flex-1 rounded-lg px-2 py-1.5 text-xs font-semibold ${g.category === c ? CATEGORY_STYLE[c] : "text-gray-400 hover:bg-gray-100"}`}
+                      >
+                        {CATEGORY_LABEL[c]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </Card>
+
+      <Card
+        title={scope ? `What ${scopeName} actually used` : "What your team actually used"}
+        desc="The last 30 days, so you can correct anything the groups got wrong for your business. This drives the Focus figure on Productivity Trends and the distraction list in emailed reports."
+      >
+        {!rows ? (
+          <div className="text-gray-400">Loading activity…</div>
+        ) : rows.length === 0 ? (
+          <p className="text-sm text-gray-400">
+            {scope
+              ? `No activity recorded for ${scopeName} in the last 30 days.`
+              : "No activity recorded in the last 30 days yet. Once agents report app and website usage, everything they use appears here to classify."}
+          </p>
         ) : (
           <>
             <div className="mb-4 flex gap-2 text-xs font-semibold">
@@ -406,7 +539,6 @@ function ProductivityTab() {
                 <option value="app">Apps</option>
                 <option value="web">Websites</option>
               </select>
-              <button onClick={resetAll} className="rounded-xl border border-gray-200 px-3 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50">Reset to defaults</button>
             </div>
             <div className="max-h-[28rem] overflow-y-auto rounded-xl border border-gray-100">
               <table className="w-full text-left text-sm">
@@ -439,7 +571,7 @@ function ProductivityTab() {
               </table>
             </div>
             <p className="mt-3 text-xs text-gray-400">
-              New apps start from a shipped default list, so reports mean something before you touch anything.
+              A rule for one app or site beats its group, so you can keep "Social media" unproductive and still allow the one account someone runs for work.
               Anything unrecognised counts as Neutral — it neither helps nor hurts the Focus figure.
             </p>
           </>
