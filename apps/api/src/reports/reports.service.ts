@@ -586,7 +586,9 @@ export class ReportsService {
 
       // Idle time is neither productive nor unproductive — only active time is
       // classified, so "focus" measures what the working time went on.
-      const category = s.isIdle ? ActivityCategory.NEUTRAL : classify(s.type, s.name);
+      // s.employeeId matters: a category can be overridden for one person,
+      // so the same site is productive for them and not for everyone else.
+      const category = s.isIdle ? ActivityCategory.NEUTRAL : classify(s.type, s.name, s.employeeId);
       if (!s.isIdle) ReportsService.addCat(totalCat, category, s.durationSec);
 
       if (!s.isIdle) {

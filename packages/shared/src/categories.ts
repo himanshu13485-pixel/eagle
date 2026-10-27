@@ -5,136 +5,255 @@ export interface CategoryRule {
   /** Matched case-insensitively as a substring of the app name or URL. */
   pattern: string;
   category: ActivityCategory;
+  /** The group this pattern ships in. Absent on a rule the customer added. */
+  group?: string;
 }
 
-const app = (pattern: string, category: ActivityCategory): CategoryRule => ({ type: UsageType.APP, pattern, category });
-const web = (pattern: string, category: ActivityCategory): CategoryRule => ({ type: UsageType.WEB, pattern, category });
 const { PRODUCTIVE, UNPRODUCTIVE, NEUTRAL } = ActivityCategory;
 
 /**
- * What a new organisation starts with, so productivity reporting means something
- * on day one. These are deliberately uncontroversial — an IDE is work, a
- * streaming site is not — and every org can override or extend them in
- * Settings → Productivity.
+ * A named bucket of apps and sites that are judged together — "Social media",
+ * "Personal messaging & texting", "Design & creative", and so on.
  *
- * Nothing here is a judgement about a person: a browser is NEUTRAL because the
- * same window can be research or shopping, and the site-level rules decide.
+ * Groups exist so a manager makes one decision instead of forty: switching
+ * "Social media" to productive for whoever runs the company's Instagram is one
+ * click, not a rule per site. A single pattern can still be overridden on its
+ * own, and either kind of override can apply to the whole organisation or to
+ * one employee.
  */
-export const DEFAULT_CATEGORY_RULES: CategoryRule[] = [
-  // --- Applications ---
-  app("code", PRODUCTIVE),
-  app("visual studio", PRODUCTIVE),
-  app("intellij", PRODUCTIVE),
-  app("pycharm", PRODUCTIVE),
-  app("webstorm", PRODUCTIVE),
-  app("android studio", PRODUCTIVE),
-  app("xcode", PRODUCTIVE),
-  app("sublime", PRODUCTIVE),
-  app("terminal", PRODUCTIVE),
-  app("powershell", PRODUCTIVE),
-  app("cmd.exe", PRODUCTIVE),
-  app("excel", PRODUCTIVE),
-  app("word", PRODUCTIVE),
-  app("powerpoint", PRODUCTIVE),
-  app("outlook", PRODUCTIVE),
-  app("figma", PRODUCTIVE),
-  app("photoshop", PRODUCTIVE),
-  app("illustrator", PRODUCTIVE),
-  app("premiere", PRODUCTIVE),
-  app("autocad", PRODUCTIVE),
-  app("tally", PRODUCTIVE),
-  app("postman", PRODUCTIVE),
-  app("dbeaver", PRODUCTIVE),
-  app("notion", PRODUCTIVE),
-  app("obsidian", PRODUCTIVE),
-  app("slack", PRODUCTIVE),
-  app("teams", PRODUCTIVE),
-  app("zoom", PRODUCTIVE),
-  app("anydesk", PRODUCTIVE),
-  app("teamviewer", PRODUCTIVE),
+export interface CategoryGroup {
+  key: string;
+  label: string;
+  /** Shown under the label in Settings, so the grouping isn't a guess. */
+  description: string;
+  defaultCategory: ActivityCategory;
+  apps: string[];
+  sites: string[];
+}
 
-  app("steam", UNPRODUCTIVE),
-  app("epic games", UNPRODUCTIVE),
-  app("roblox", UNPRODUCTIVE),
-  app("minecraft", UNPRODUCTIVE),
-  app("valorant", UNPRODUCTIVE),
-  app("discord", UNPRODUCTIVE),
-  app("spotify", UNPRODUCTIVE),
-  app("vlc", UNPRODUCTIVE),
-  app("netflix", UNPRODUCTIVE),
-  app("whatsapp", UNPRODUCTIVE),
-  app("telegram", UNPRODUCTIVE),
-
-  // Browsers themselves say nothing — the site does.
-  app("chrome", NEUTRAL),
-  app("firefox", NEUTRAL),
-  app("edge", NEUTRAL),
-  app("safari", NEUTRAL),
-  app("brave", NEUTRAL),
-  app("opera", NEUTRAL),
-  app("explorer.exe", NEUTRAL),
-  app("file explorer", NEUTRAL),
-  app("settings", NEUTRAL),
-  app("idle", NEUTRAL),
-
-  // --- Websites ---
-  web("github.com", PRODUCTIVE),
-  web("gitlab.com", PRODUCTIVE),
-  web("bitbucket.org", PRODUCTIVE),
-  web("stackoverflow.com", PRODUCTIVE),
-  web("developer.mozilla.org", PRODUCTIVE),
-  web("docs.google.com", PRODUCTIVE),
-  web("drive.google.com", PRODUCTIVE),
-  web("mail.google.com", PRODUCTIVE),
-  web("outlook.office.com", PRODUCTIVE),
-  web("office.com", PRODUCTIVE),
-  web("atlassian.net", PRODUCTIVE),
-  web("jira", PRODUCTIVE),
-  web("trello.com", PRODUCTIVE),
-  web("asana.com", PRODUCTIVE),
-  web("linear.app", PRODUCTIVE),
-  web("notion.so", PRODUCTIVE),
-  web("figma.com", PRODUCTIVE),
-  web("canva.com", PRODUCTIVE),
-  web("salesforce.com", PRODUCTIVE),
-  web("hubspot.com", PRODUCTIVE),
-  web("zoho.com", PRODUCTIVE),
-  web("aws.amazon.com", PRODUCTIVE),
-  web("console.cloud.google.com", PRODUCTIVE),
-  web("portal.azure.com", PRODUCTIVE),
-  web("chatgpt.com", PRODUCTIVE),
-  web("claude.ai", PRODUCTIVE),
-  web("linkedin.com", PRODUCTIVE),
-
-  web("youtube.com", UNPRODUCTIVE),
-  web("netflix.com", UNPRODUCTIVE),
-  web("primevideo.com", UNPRODUCTIVE),
-  web("hotstar.com", UNPRODUCTIVE),
-  web("twitch.tv", UNPRODUCTIVE),
-  web("facebook.com", UNPRODUCTIVE),
-  web("instagram.com", UNPRODUCTIVE),
-  web("tiktok.com", UNPRODUCTIVE),
-  web("reddit.com", UNPRODUCTIVE),
-  web("x.com", UNPRODUCTIVE),
-  web("twitter.com", UNPRODUCTIVE),
-  web("pinterest.com", UNPRODUCTIVE),
-  web("snapchat.com", UNPRODUCTIVE),
-  web("spotify.com", UNPRODUCTIVE),
-  web("amazon.in", UNPRODUCTIVE),
-  web("amazon.com", UNPRODUCTIVE),
-  web("flipkart.com", UNPRODUCTIVE),
-  web("myntra.com", UNPRODUCTIVE),
-  web("swiggy.com", UNPRODUCTIVE),
-  web("zomato.com", UNPRODUCTIVE),
-  web("cricbuzz.com", UNPRODUCTIVE),
-  web("espncricinfo.com", UNPRODUCTIVE),
-  web("dream11.com", UNPRODUCTIVE),
-
-  web("google.com", NEUTRAL),
-  web("bing.com", NEUTRAL),
-  web("wikipedia.org", NEUTRAL),
-  web("localhost", NEUTRAL),
+export const CATEGORY_GROUPS: CategoryGroup[] = [
+  {
+    key: "development",
+    label: "Development & engineering",
+    description: "Editors, terminals, source control and developer documentation.",
+    defaultCategory: PRODUCTIVE,
+    apps: ["code", "visual studio", "intellij", "pycharm", "webstorm", "android studio", "xcode", "sublime", "cursor", "terminal", "powershell", "cmd.exe", "iterm", "postman", "dbeaver", "docker"],
+    sites: ["github.com", "gitlab.com", "bitbucket.org", "stackoverflow.com", "developer.mozilla.org", "npmjs.com", "pypi.org"],
+  },
+  {
+    key: "office",
+    label: "Documents & spreadsheets",
+    description: "Word processing, spreadsheets, slides and work email.",
+    defaultCategory: PRODUCTIVE,
+    apps: ["excel", "word", "powerpoint", "outlook", "onenote", "acrobat", "libreoffice", "wps office"],
+    sites: ["docs.google.com", "sheets.google.com", "slides.google.com", "drive.google.com", "mail.google.com", "outlook.office.com", "office.com", "onedrive.live.com", "dropbox.com"],
+  },
+  {
+    key: "work-communication",
+    label: "Work communication",
+    description: "Team chat and meetings. Kept separate from personal messaging on purpose.",
+    defaultCategory: PRODUCTIVE,
+    apps: ["slack", "teams", "zoom", "google meet", "webex", "skype"],
+    sites: ["slack.com", "teams.microsoft.com", "meet.google.com", "zoom.us"],
+  },
+  {
+    key: "personal-messaging",
+    label: "Personal messaging & texting",
+    description: "Chat apps used for personal conversations during the day.",
+    defaultCategory: UNPRODUCTIVE,
+    apps: ["whatsapp", "telegram", "signal", "discord", "messenger", "imessage"],
+    sites: ["web.whatsapp.com", "web.telegram.org", "messenger.com", "discord.com"],
+  },
+  {
+    key: "creative",
+    label: "Design & creative",
+    description: "Design, photo, video and audio tools.",
+    defaultCategory: PRODUCTIVE,
+    apps: ["figma", "photoshop", "illustrator", "indesign", "premiere", "after effects", "lightroom", "coreldraw", "autocad", "blender", "sketch", "affinity", "davinci resolve", "audacity"],
+    sites: ["figma.com", "canva.com", "behance.net", "dribbble.com", "unsplash.com", "adobe.com"],
+  },
+  {
+    key: "in-house",
+    label: "In-house & business apps",
+    description: "Accounting, ERP, CRM and internal tools. Add your own here.",
+    defaultCategory: PRODUCTIVE,
+    apps: ["tally", "busy", "marg", "sap", "quickbooks", "zoho books", "anydesk", "teamviewer"],
+    sites: ["salesforce.com", "hubspot.com", "zoho.com", "freshworks.com", "odoo.com", "erpnext.com", "intranet", "localhost"],
+  },
+  {
+    key: "project-management",
+    label: "Project & knowledge management",
+    description: "Task boards, wikis and planning tools.",
+    defaultCategory: PRODUCTIVE,
+    apps: ["notion", "obsidian", "jira", "clickup"],
+    sites: ["atlassian.net", "jira", "trello.com", "asana.com", "linear.app", "notion.so", "clickup.com", "monday.com", "basecamp.com"],
+  },
+  {
+    key: "ai-tools",
+    label: "AI assistants",
+    description: "Chat and coding assistants used as part of the work.",
+    defaultCategory: PRODUCTIVE,
+    apps: ["chatgpt", "claude", "copilot"],
+    sites: ["chatgpt.com", "chat.openai.com", "claude.ai", "gemini.google.com", "perplexity.ai", "copilot.microsoft.com"],
+  },
+  {
+    key: "cloud-admin",
+    label: "Cloud & admin consoles",
+    description: "Infrastructure dashboards and hosting control panels.",
+    defaultCategory: PRODUCTIVE,
+    apps: [],
+    sites: ["aws.amazon.com", "console.cloud.google.com", "portal.azure.com", "cloudflare.com", "vercel.com", "netlify.com", "digitalocean.com", "cpanel"],
+  },
+  {
+    key: "learning",
+    label: "Learning & training",
+    description: "Courses and tutorials. Productive by default — change it if it isn't.",
+    defaultCategory: PRODUCTIVE,
+    apps: [],
+    sites: ["udemy.com", "coursera.org", "pluralsight.com", "w3schools.com", "geeksforgeeks.org", "khanacademy.org"],
+  },
+  {
+    key: "social",
+    label: "Social media",
+    description: "Social networks and feeds.",
+    defaultCategory: UNPRODUCTIVE,
+    apps: ["instagram", "facebook", "tiktok", "snapchat"],
+    sites: ["facebook.com", "instagram.com", "tiktok.com", "x.com", "twitter.com", "reddit.com", "pinterest.com", "snapchat.com", "threads.net", "quora.com"],
+  },
+  {
+    key: "professional-network",
+    label: "Professional networking & job sites",
+    description: "Neutral by default: the same site is recruiting for one person and job-hunting for another.",
+    defaultCategory: NEUTRAL,
+    apps: [],
+    sites: ["linkedin.com", "naukri.com", "indeed.com", "glassdoor.com", "shine.com", "monster.com", "wellfound.com"],
+  },
+  {
+    key: "entertainment",
+    label: "Entertainment & streaming",
+    description: "Video, music and streaming services.",
+    defaultCategory: UNPRODUCTIVE,
+    apps: ["spotify", "vlc", "netflix", "prime video", "itunes"],
+    sites: ["youtube.com", "netflix.com", "primevideo.com", "hotstar.com", "jiocinema.com", "sonyliv.com", "zee5.com", "twitch.tv", "spotify.com", "gaana.com", "wynk.in"],
+  },
+  {
+    key: "gaming",
+    label: "Gaming",
+    description: "Games and game stores.",
+    defaultCategory: UNPRODUCTIVE,
+    apps: ["steam", "epic games", "roblox", "minecraft", "valorant", "league of legends", "battle.net", "riot client", "bgmi", "free fire"],
+    sites: ["steampowered.com", "epicgames.com", "roblox.com", "ign.com", "miniclip.com", "poki.com"],
+  },
+  {
+    key: "shopping",
+    label: "Shopping & food delivery",
+    description: "Retail, marketplaces and food ordering.",
+    defaultCategory: UNPRODUCTIVE,
+    apps: [],
+    sites: ["amazon.in", "amazon.com", "flipkart.com", "myntra.com", "ajio.com", "meesho.com", "nykaa.com", "swiggy.com", "zomato.com", "blinkit.com", "bigbasket.com"],
+  },
+  {
+    key: "news-sport",
+    label: "News & sport",
+    description: "News sites, scores and fantasy sport.",
+    defaultCategory: UNPRODUCTIVE,
+    apps: [],
+    sites: ["cricbuzz.com", "espncricinfo.com", "dream11.com", "timesofindia.com", "ndtv.com", "indiatoday.in", "hindustantimes.com"],
+  },
+  {
+    key: "finance",
+    label: "Banking & finance",
+    description: "Banking and tax portals. Neutral: necessary, but not the job for most roles.",
+    defaultCategory: NEUTRAL,
+    apps: [],
+    sites: ["netbanking", "onlinesbi", "icicibank.com", "hdfcbank.com", "axisbank.com", "paytm.com", "phonepe.com", "incometax.gov.in", "gst.gov.in"],
+  },
+  {
+    key: "system",
+    label: "Browsers, search & system",
+    description: "A browser window says nothing on its own — the site inside it decides.",
+    defaultCategory: NEUTRAL,
+    apps: ["chrome", "firefox", "edge", "safari", "brave", "opera", "explorer.exe", "file explorer", "finder", "settings", "system preferences", "idle"],
+    sites: ["google.com", "bing.com", "duckduckgo.com", "wikipedia.org", "translate.google.com"],
+  },
 ];
+
+const ruleFrom = (g: CategoryGroup, type: UsageType, pattern: string): CategoryRule => ({
+  type,
+  pattern,
+  category: g.defaultCategory,
+  group: g.key,
+});
+
+/**
+ * What a new organisation starts with, so productivity reporting means
+ * something on day one. Flattened from CATEGORY_GROUPS — the groups are the
+ * source of truth; this is the shape the classifier wants.
+ */
+export const DEFAULT_CATEGORY_RULES: CategoryRule[] = CATEGORY_GROUPS.flatMap((g) => [
+  ...g.apps.map((p) => ruleFrom(g, UsageType.APP, p)),
+  ...g.sites.map((p) => ruleFrom(g, UsageType.WEB, p)),
+]);
+
+export const GROUP_BY_KEY: Record<string, CategoryGroup> = Object.fromEntries(
+  CATEGORY_GROUPS.map((g) => [g.key, g]),
+);
+
+/** A stored override: either a whole group, or one app/site pattern. */
+export interface CategoryOverride {
+  /** Set for a whole-group override; null/absent for a single pattern. */
+  groupKey?: string | null;
+  type?: string | null;
+  pattern?: string | null;
+  category: ActivityCategory;
+  /** null = applies to the whole organisation. */
+  employeeId?: string | null;
+}
+
+/**
+ * Build the rule set that applies to one employee.
+ *
+ * Precedence, widest first so the narrowest wins: what the group ships with,
+ * then an org-wide group override, then that employee's group override, then
+ * an org-wide pattern override, then that employee's pattern override. So
+ * "YouTube is productive for Priya" survives "Entertainment is unproductive
+ * for everyone".
+ */
+export function rulesForEmployee(
+  overrides: CategoryOverride[],
+  employeeId?: string | null,
+): CategoryRule[] {
+  const isMine = (o: CategoryOverride) => !!o.employeeId && o.employeeId === employeeId;
+  const isOrgWide = (o: CategoryOverride) => !o.employeeId;
+  const relevant = overrides.filter((o) => isMine(o) || isOrgWide(o));
+
+  const groupVerdict = new Map<string, ActivityCategory>();
+  for (const o of relevant) if (o.groupKey && isOrgWide(o)) groupVerdict.set(o.groupKey, o.category);
+  for (const o of relevant) if (o.groupKey && isMine(o)) groupVerdict.set(o.groupKey, o.category);
+
+  const rules: CategoryRule[] = DEFAULT_CATEGORY_RULES.map((r) =>
+    r.group && groupVerdict.has(r.group) ? { ...r, category: groupVerdict.get(r.group)! } : { ...r },
+  );
+
+  const byKey = new Map<string, CategoryRule>(rules.map((r) => [`${r.type}:${r.pattern.toLowerCase()}`, r]));
+  const applyPattern = (o: CategoryOverride) => {
+    if (!o.pattern || !o.type) return;
+    const key = `${o.type}:${o.pattern.toLowerCase()}`;
+    const existing = byKey.get(key);
+    if (existing) {
+      existing.category = o.category;
+      return;
+    }
+    // A pattern the customer added themselves, with no shipped group behind it.
+    const added: CategoryRule = { type: o.type as UsageType, pattern: o.pattern, category: o.category };
+    rules.push(added);
+    byKey.set(key, added);
+  };
+  for (const o of relevant) if (!o.groupKey && isOrgWide(o)) applyPattern(o);
+  for (const o of relevant) if (!o.groupKey && isMine(o)) applyPattern(o);
+
+  return rules;
+}
 
 /**
  * Classify one app/site name against a rule set. The longest matching pattern

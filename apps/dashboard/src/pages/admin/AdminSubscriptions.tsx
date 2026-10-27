@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { PLANS, PlanTier, type PlanDefinition } from "@eagle/shared";
+import { PLANS, PlanTier, type PlanDefinition, SELLABLE_TIERS } from "@eagle/shared";
 import { adminApi, adminErr } from "../../lib/adminApi";
 import { fmtBytes } from "../../lib/format";
 import { AdminHeader } from "../../components/AdminLayout";
@@ -17,7 +17,7 @@ interface Totals {
 }
 interface Resp { clients: SubClient[]; totals: Totals; plans: Record<string, PlanDefinition> }
 
-const TIERS: PlanTier[] = [PlanTier.BASIC, PlanTier.PROFESSIONAL, PlanTier.BUSINESS];
+const TIERS: PlanTier[] = [...SELLABLE_TIERS];
 const TIER_STYLE: Record<string, string> = {
   BASIC: "bg-slate-100 text-slate-700", PROFESSIONAL: "bg-indigo-100 text-indigo-700", BUSINESS: "bg-amber-100 text-amber-700",
 };

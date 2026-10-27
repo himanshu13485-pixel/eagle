@@ -157,7 +157,7 @@ class Agent {
 
     // Periodic screenshot.
     if (!this.cfg.paused && this.cfg.periodicScreenshots && now >= this.nextPeriodicAt) {
-      this.nextPeriodicAt = now + this.cfg.screenshotIntervalMin * 60_000;
+      this.resetPeriodicTimer(now);
       await this.capture("PERIODIC", fg.app, fg.url, idle);
     }
   }
@@ -176,6 +176,18 @@ class Agent {
     setTimeout(() => {
       getForeground().then((fg) => this.capture("APP_SWITCH", fg.app, fg.url, false));
     }, 2500);
+  }
+
+  /**
+   * Restart the countdown to the next periodic screenshot.
+   *
+   * Any capture counts, not just a periodic one. Before this, an app-switch
+   * shot at minute 8 of a 10-minute interval was followed by the periodic one
+   * two minutes later — two screenshots in two minutes, and the gap the
+   * customer configured was not the gap they got.
+   */
+  private resetPeriodicTimer(now = Date.now()) {
+    this.nextPeriodicAt = now + Math.max(1, this.cfg.screenshotIntervalMin) * 60_000;
   }
 
   private async rollSession(app: string | null, url: string | null, idle: boolean) {
@@ -216,6 +228,11 @@ class Agent {
       console.error("[capture]", e.message);
       return;
     }
+    // A shot just went out, so the configured interval starts again from here
+    // — an app-switch capture at minute 8 should not be chased by the periodic
+    // one at minute 10. Set after the grab succeeds, so a failed capture
+    // doesn't push the next scheduled one away.
+    this.resetPeriodicTimer();
     const meta = { capturedAt: new Date().toISOString(), trigger, app, url, isIdle };
     try {
       await this.api.uploadScreenshot(img, meta);

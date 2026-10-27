@@ -1,4 +1,4 @@
-import { BRAND, PLANS, PlanTier } from "@eagle/shared";
+import { BRAND, PLANS, PRICING, PlanTier, SELLABLE_TIERS } from "@eagle/shared";
 
 /**
  * Per-route page metadata.
@@ -39,9 +39,10 @@ export const PAGES: PageSeo[] = [
   },
   {
     path: "/pricing",
-    title: "Pricing — Plans from $2.99 per User per Month | Workk",
-    description:
-      "Simple per-seat pricing with no surprises. Three plans separated by screenshot frequency, data retention and team limits. Every plan includes the full reporting suite and a 14-day free trial.",
+    // Built from the catalogue so the headline price in a search result cannot
+    // drift away from the price on the page.
+    title: `Pricing — Plans from ${PRICING.symbol}${PLANS[PlanTier.STANDARD].monthly} per User per Month | ${BRAND.name}`,
+    description: `Simple per-user pricing with no surprises. Two plans with the same full product, separated only by how long screenshots and activity are kept — ${PLANS[PlanTier.STANDARD].limits.screenshotRetentionDays} or ${PLANS[PlanTier.PRO].limits.screenshotRetentionDays} days. On an annual term you pay for ${PRICING.annualMonthsBilled} months and are served ${PRICING.annualMonthsServed}. 14-day free trial, no card required.`,
     priority: 0.9,
   },
   {
@@ -117,7 +118,8 @@ export function organizationJsonLd() {
 }
 
 export function softwareJsonLd() {
-  const tiers = [PlanTier.BASIC, PlanTier.PROFESSIONAL, PlanTier.BUSINESS];
+  // Was a hardcoded list of the three retired tiers priced in USD, so the site
+  // published offers literally named "Basic (retired)" at the wrong currency.
   return {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
@@ -126,12 +128,12 @@ export function softwareJsonLd() {
     operatingSystem: "Windows, macOS, Linux",
     description: BRAND.description,
     url: SITE_URL,
-    offers: tiers.map((t) => ({
+    offers: SELLABLE_TIERS.map((t) => ({
       "@type": "Offer",
       name: PLANS[t].name,
       price: PLANS[t].monthly,
-      priceCurrency: "USD",
-      category: "per seat per month",
+      priceCurrency: PRICING.currency,
+      category: "per user per month",
     })),
   };
 }

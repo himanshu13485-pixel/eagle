@@ -75,6 +75,7 @@ model PaymentOrder {
   tier             String
   cycle            String // MONTHLY | ANNUALLY
   seats            Int
+  liveView         Boolean   @default(false) // live-view add-on bought with this order
   status           String    @default("CREATED") // CREATED | PAID | FAILED
   paymentSessionId String?
   createdAt        DateTime  @default(now())
@@ -180,6 +181,7 @@ model Employee {
   devices     Device[]
   screenshots Screenshot[]
   activities  ActivitySession[]
+  categories  ActivityCategory[]
 
   @@index([orgId])
 }
@@ -245,17 +247,28 @@ model ActivitySession {
 // `pattern` is matched case-insensitively as a substring of ActivitySession.name;
 // the longest matching pattern wins, so "mail.google.com" beats "google.com".
 // Orgs start from DEFAULT_CATEGORY_RULES in @eagle/shared and override from there.
+// A productivity override. Either a whole shipped group (groupKey set) or a
+// single app/site pattern, applied to the whole org or to one employee.
 model ActivityCategory {
-  id        String       @id @default(cuid())
-  orgId     String
-  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  type      String // APP | WEB
-  pattern   String
-  category  String // PRODUCTIVE | UNPRODUCTIVE | NEUTRAL
-  createdAt DateTime     @default(now())
+  id         String       @id @default(cuid())
+  orgId      String
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  // null = applies to everyone in the org; set = just this person.
+  employeeId String?
+  employee   Employee?    @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  // Set for a whole-group override; then type/pattern are null.
+  groupKey   String?
+  type       String? // APP | WEB
+  pattern    String?
+  category   String // PRODUCTIVE | UNPRODUCTIVE | NEUTRAL
+  createdAt  DateTime     @default(now())
 
-  @@unique([orgId, type, pattern])
+  // One verdict per target per scope. employeeId is nullable, and most
+  // databases treat NULLs as distinct in a unique index, so org-wide rows are
+  // de-duplicated in the service rather than relied on here.
+  @@unique([orgId, employeeId, groupKey, type, pattern])
   @@index([orgId])
+  @@index([orgId, employeeId])
 }
 
 model TrackingSetting {
@@ -297,9 +310,12 @@ model Subscription {
   id         String       @id @default(cuid())
   orgId      String       @unique
   org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  tier       String       @default("PROFESSIONAL") // PlanTier
-  cycle      String       @default("ANNUALLY") // BillingCycle
-  seats      Int          @default(10)
+  tier       String       @default("STANDARD") // PlanTier
+  cycle      String       @default("MONTHLY") // BillingCycle
+  seats      Int          @default(5)
+  // Live screen viewing is sold as a per-seat monthly add-on rather than
+  // being part of either plan; the realtime gateway checks this.
+  liveView   Boolean      @default(false)
   validUntil DateTime?
   createdAt  DateTime     @default(now())
 }

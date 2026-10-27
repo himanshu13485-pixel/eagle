@@ -6,9 +6,12 @@ import { PlatformAuthGuard, assertSuperAdmin } from "./platform-auth.guard";
 import { RateLimiter, RATE_RULES } from "../common/rate-limit";
 import { RateLimit, RateLimitGuard } from "../common/rate-limit.guard";
 import type { Request } from "express";
+import { SELLABLE_TIERS } from "@eagle/shared";
 
 const ROLES = ["SUPER_ADMIN", "SUB_ADMIN", "SALESPERSON"];
-const TIERS = ["BASIC", "PROFESSIONAL", "BUSINESS"];
+// Only the tiers on sale can be assigned; retired ones stay readable but
+// are never written to a new subscription.
+const TIERS = [...SELLABLE_TIERS] as string[];
 
 class AdminLoginDto {
   @IsEmail() email!: string;

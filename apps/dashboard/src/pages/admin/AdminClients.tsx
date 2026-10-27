@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { PlanTier, SELLABLE_TIERS } from "@eagle/shared";
 import { adminApi, adminErr, getAdmin, openClientDashboard } from "../../lib/adminApi";
 import { AdminHeader } from "../../components/AdminLayout";
 
@@ -9,7 +10,8 @@ interface Client {
 }
 interface Staff { id: string; name: string; email: string; role: string; active: boolean }
 
-const TIERS = ["BASIC", "PROFESSIONAL", "BUSINESS"];
+// Only the tiers on sale; retired ones stay readable but are never assigned.
+const TIERS: string[] = [...SELLABLE_TIERS];
 const STATUS_STYLE: Record<string, string> = { ACTIVE: "bg-green-100 text-green-700", SUSPENDED: "bg-rose-100 text-rose-600" };
 
 export function AdminClients() {
@@ -108,7 +110,7 @@ function ClientModal({ client, sellers, onClose, onSaved, onErr }: { client?: Cl
   const [ownerName, setOwnerName] = useState("");
   const [ownerEmail, setOwnerEmail] = useState("");
   const [ownerPassword, setOwnerPassword] = useState("");
-  const [tier, setTier] = useState(client?.tier ?? "PROFESSIONAL");
+  const [tier, setTier] = useState(client?.tier ?? PlanTier.STANDARD);
   const [seats, setSeats] = useState(client?.seats ?? 10);
   const [salespersonId, setSalespersonId] = useState(client?.salespersonId ?? "");
   const [withInvoice, setWithInvoice] = useState(false);

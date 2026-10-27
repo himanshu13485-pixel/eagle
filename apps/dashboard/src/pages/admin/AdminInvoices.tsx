@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { PLANS, PlanTier } from "@eagle/shared";
+import { PLANS, PlanTier, SELLABLE_TIERS } from "@eagle/shared";
 import { adminApi, adminErr } from "../../lib/adminApi";
 import { AdminHeader } from "../../components/AdminLayout";
 import { InvoiceModal, money, type Invoice } from "../../components/InvoiceModal";
 
 interface Client { id: string; name: string }
-const TIERS: PlanTier[] = [PlanTier.BASIC, PlanTier.PROFESSIONAL, PlanTier.BUSINESS];
+const TIERS: PlanTier[] = [...SELLABLE_TIERS];
 const STATUS_STYLE: Record<string, string> = { PAID: "bg-green-100 text-green-700", DUE: "bg-amber-100 text-amber-700", VOID: "bg-gray-100 text-gray-500" };
 const fmtDate = (s: string) => new Date(s).toLocaleDateString();
 
@@ -119,7 +119,7 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "gr
 
 function CreateInvoiceModal({ clients, onClose, onSaved, onErr }: { clients: Client[]; onClose: () => void; onSaved: () => void; onErr: (m: string) => void }) {
   const [orgId, setOrgId] = useState("");
-  const [tier, setTier] = useState<PlanTier>(PlanTier.PROFESSIONAL);
+  const [tier, setTier] = useState<PlanTier>(PlanTier.STANDARD);
   const [cycle, setCycle] = useState("ANNUALLY");
   const [seats, setSeats] = useState(10);
   const [status, setStatus] = useState("DUE");

@@ -5,7 +5,9 @@ export interface Invoice {
 }
 
 const SYMBOL: Record<string, string> = { USD: "$", INR: "₹", EUR: "€", GBP: "£" };
-export const money = (n: number, cur = "USD") => `${SYMBOL[cur] ?? cur + " "}${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// Defaults to INR, which is what the product is priced in. It used to default
+// to USD, so any caller that forgot the currency silently rendered "$".
+export const money = (n: number, cur = "INR") => `${SYMBOL[cur] ?? cur + " "}${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtDate = (s: string) => new Date(s).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 const STATUS_STYLE: Record<string, string> = { PAID: "bg-green-100 text-green-700", DUE: "bg-amber-100 text-amber-700", VOID: "bg-gray-100 text-gray-500" };
 

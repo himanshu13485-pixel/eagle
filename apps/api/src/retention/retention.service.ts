@@ -1,6 +1,6 @@
 import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { Cron, CronExpression } from "@nestjs/schedule";
-import { planLimits } from "@eagle/shared";
+import { planLimits, normalizeTier } from "@eagle/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
 import { QuotaService } from "../storage/quota.service";
@@ -61,7 +61,7 @@ export class RetentionService implements OnModuleInit {
 
   async prune(orgId: string) {
     const sub = await this.prisma.subscription.findUnique({ where: { orgId } });
-    const tier = sub?.tier ?? "PROFESSIONAL";
+    const tier = normalizeTier(sub?.tier);
     const ret = planLimits(tier);
     const now = Date.now();
     const shotCut = new Date(now - ret.screenshotRetentionDays * 86400_000);

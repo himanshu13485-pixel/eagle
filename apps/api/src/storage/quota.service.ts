@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { planLimits, storageLimitBytes } from "@eagle/shared";
+import { planLimits, storageLimitBytes, normalizeTier } from "@eagle/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "./storage.service";
 
@@ -51,7 +51,7 @@ export class QuotaService {
       where: { orgId },
       select: { tier: true },
     });
-    const tier = sub?.tier ?? "PROFESSIONAL";
+    const tier = normalizeTier(sub?.tier);
     this.tiers.set(orgId, { tier, at: Date.now() });
     return tier;
   }

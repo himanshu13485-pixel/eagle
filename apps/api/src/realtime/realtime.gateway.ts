@@ -119,6 +119,20 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     return { ok: true, orgId };
   }
 
+  /** Whether this org has bought the live-view add-on. Cached briefly: a
+   *  viewer toggling tiles would otherwise hit the database on every click. */
+  private readonly liveViewCache = new Map<string, { on: boolean; at: number }>();
+
+  private async liveViewAllowed(orgId: string): Promise<boolean> {
+    const hit = this.liveViewCache.get(orgId);
+    if (hit && Date.now() - hit.at < 30_000) return hit.on;
+    const sub = await this.prisma.subscription.findUnique({ where: { orgId }, select: { liveView: true } });
+    const on = !!sub?.liveView;
+    if (this.liveViewCache.size > 10_000) this.liveViewCache.clear();
+    this.liveViewCache.set(orgId, { on, at: Date.now() });
+    return on;
+  }
+
   @SubscribeMessage(RT_EVENTS.liveWatch)
   async onWatch(@MessageBody() data: LiveWatchPayload, @ConnectedSocket() client: Socket) {
     const orgId = this.viewerOrg.get(client.id);
@@ -129,6 +143,13 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       select: { id: true },
     });
     if (!employee) return { ok: false }; // unknown / deactivated → no live stream
+
+    // Live screen viewing is a paid add-on, not part of either plan. Enforced
+    // here rather than in the UI alone: this is the one place a frame can
+    // start flowing, so a hand-crafted socket message can't bypass it.
+    if (data.on && !(await this.liveViewAllowed(orgId))) {
+      return { ok: false, reason: "LIVE_VIEW_NOT_ENABLED" };
+    }
 
     if (data.on) {
       const first = !(this.viewersByEmployee.get(data.employeeId)?.size);

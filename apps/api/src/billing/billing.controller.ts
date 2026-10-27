@@ -1,22 +1,22 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
-import { IsEnum, IsIn, IsInt, IsOptional, IsString, Min } from "class-validator";
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Min } from "class-validator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CurrentUser, RequestUser } from "../auth/current-user.decorator";
 import { PrismaService } from "../prisma/prisma.service";
-import { PlanTier, PLANS } from "@eagle/shared";
+import { PLANS, PRICING, SELLABLE_TIERS, planFor, priceForCycle } from "@eagle/shared";
 import { QuotaService } from "../storage/quota.service";
 import { BillingService } from "./billing.service";
 
-class TierDto {
-  @IsEnum(PlanTier) tier!: PlanTier;
-}
-class SeatsDto {
-  @IsInt() @Min(1) seats!: number;
-}
+// TierDto / SeatsDto lived here for POST /billing/tier and /seats, the two
+// routes that let any signed-in customer grant themselves the top plan for
+// free. Both were removed; comping a plan is a platform-admin action.
 class CheckoutDto {
-  @IsEnum(PlanTier) tier!: PlanTier;
+  // Only a tier on sale can be bought; the retired ones are read-only.
+  @IsIn([...SELLABLE_TIERS]) tier!: string;
   @IsIn(["MONTHLY", "ANNUALLY"]) cycle!: string;
   @IsInt() @Min(1) seats!: number;
+  /** Live screen viewing, charged per seat on top of the plan. */
+  @IsOptional() @IsBoolean() liveView?: boolean;
 }
 class OrderRefDto {
   @IsString() orderId!: string;
@@ -44,17 +44,28 @@ export class BillingController {
     // Only active (non-deactivated) employees consume a seat.
     const activeUsers = await this.prisma.employee.count({ where: { orgId: u.orgId, active: true } });
     const storage = await this.quota.usage(u.orgId);
-    const plan = PLANS[sub.tier as PlanTier];
+    const plan = planFor(sub.tier);
     return {
-      tier: sub.tier,
+      // The normalised tier, so a retired value doesn't reach the UI.
+      tier: plan.tier,
       cycle: sub.cycle,
       seats: sub.seats,
       validUntil: sub.validUntil,
       activeUsers,
       availableSeats: Math.max(0, sub.seats - activeUsers),
-      pricePerSeat: sub.cycle === "ANNUALLY" ? plan.annual : plan.monthly,
+      // What the plan costs, and what the add-on adds, kept apart so the page
+      // can show both. Reporting one combined number made the summary card
+      // disagree with the checkout total and the invoice.
+      pricePerSeat: priceForCycle(sub.tier, sub.cycle),
+      addOnPerSeat: sub.liveView
+        ? PRICING.liveViewAddOnMonthly * (sub.cycle === "ANNUALLY" ? PRICING.annualMonthsBilled : 1)
+        : 0,
+      liveView: sub.liveView,
       storage,
-      plans: PLANS,
+      // Only what's on sale — the retired tiers would otherwise show up as
+      // choices in the plan picker.
+      plans: Object.fromEntries(SELLABLE_TIERS.map((t) => [t, PLANS[t]])),
+      pricing: PRICING,
       gatewayConfigured: !!process.env.CASHFREE_APP_ID,
     };
   }

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { QuotaService } from "../storage/quota.service";
+import { normalizeTier } from "@eagle/shared";
 
 const ACTIVE_REQUEST_LIMIT = 5;
 const MAX_DAYS_PER_REQUEST: Record<string, number> = { BASIC: 14, PROFESSIONAL: 14, BUSINESS: 31 };
@@ -54,7 +55,7 @@ export class WorkspaceService {
   // ---- Data requests ----
   private async maxDaysFor(orgId: string): Promise<number> {
     const sub = await this.prisma.subscription.findUnique({ where: { orgId } });
-    return MAX_DAYS_PER_REQUEST[sub?.tier ?? "PROFESSIONAL"] ?? 14;
+    return MAX_DAYS_PER_REQUEST[normalizeTier(sub?.tier)] ?? 14;
   }
 
   async listDataRequests(orgId: string, q: DataReqQuery = {}) {

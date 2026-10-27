@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcryptjs";
-import { PlanTier, PLANS, planLimits, storageLimitBytes } from "@eagle/shared";
+import { PlanTier, PLANS, planLimits, storageLimitBytes, planFor, normalizeTier, SELLABLE_TIERS } from "@eagle/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { StorageService } from "../storage/storage.service";
 import { QuotaService } from "../storage/quota.service";
@@ -22,7 +22,7 @@ export class AdminService {
   ) {}
 
   private planAmount(tier: string, cycle: string, seats: number): number {
-    const plan = PLANS[tier as PlanTier] ?? PLANS[PlanTier.BASIC];
+    const plan = planFor(tier);
     const perSeat = cycle === "MONTHLY" ? plan.monthly * 12 : plan.annual;
     return +(perSeat * Math.max(1, seats)).toFixed(2);
   }
@@ -128,7 +128,7 @@ export class AdminService {
 
     const clients = await Promise.all(
       orgs.map(async (o) => {
-        const tier = (o.subscription?.tier ?? PlanTier.BASIC) as PlanTier;
+        const tier = normalizeTier(o.subscription?.tier);
         const seats = o.subscription?.seats ?? 0;
         const cycle = o.subscription?.cycle ?? "ANNUALLY";
         const usedSeats = await this.prisma.employee.count({ where: { orgId: o.id, active: true } });
@@ -167,11 +167,11 @@ export class AdminService {
         storageLimit: sum((c) => c.storageLimit),
         arr,
         mrr: Number((arr / 12).toFixed(2)),
-        byTier: {
-          BASIC: clients.filter((c) => c.tier === PlanTier.BASIC).length,
-          PROFESSIONAL: clients.filter((c) => c.tier === PlanTier.PROFESSIONAL).length,
-          BUSINESS: clients.filter((c) => c.tier === PlanTier.BUSINESS).length,
-        },
+        // Counted over the tiers on sale: every client's stored tier, retired
+        // ones included, is normalised onto one of these before it gets here.
+        byTier: Object.fromEntries(
+          SELLABLE_TIERS.map((t) => [t, clients.filter((c) => c.tier === t).length]),
+        ) as Record<string, number>,
       },
     };
   }
@@ -291,7 +291,7 @@ export class AdminService {
       .map((o) => {
         const usageH = (usageMap.get(o.id) ?? 0) / 3600;
         const idleH = (idleMap.get(o.id) ?? 0) / 3600;
-        const tier = o.subscription?.tier ?? PlanTier.PROFESSIONAL;
+        const tier = normalizeTier(o.subscription?.tier);
         return {
           id: o.id,
           name: o.name,
@@ -531,7 +531,7 @@ export class AdminService {
     if (await this.prisma.user.findUnique({ where: { email } })) {
       throw new BadRequestException("A user with that owner email already exists.");
     }
-    const tier = d.tier ?? "PROFESSIONAL";
+    const tier = d.tier ?? PlanTier.STANDARD;
     const seats = d.seats ?? 10;
     const org = await this.prisma.organization.create({
       data: {

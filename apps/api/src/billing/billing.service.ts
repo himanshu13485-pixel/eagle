@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { randomBytes } from "crypto";
 import { PrismaService } from "../prisma/prisma.service";
-import { PLANS, PlanTier } from "@eagle/shared";
+import { PRICING, SELLABLE_TIERS, normalizeTier, priceForCycle } from "@eagle/shared";
 import { CashfreeService } from "./cashfree.service";
 import { InvoicesService } from "../invoices/invoices.service";
 import { OrgAccessInterceptor } from "../common/org-access.interceptor";
@@ -16,17 +16,26 @@ export class BillingService {
     private readonly orgAccess: OrgAccessInterceptor,
   ) {}
 
-  private priceFor(tier: string, cycle: string): number {
-    const plan = PLANS[tier as PlanTier];
-    if (!plan) throw new BadRequestException("Unknown tier");
-    return cycle === "MONTHLY" ? plan.monthly : plan.annual;
+  /**
+   * Per-seat price, plus the live-view add-on when the org is buying it.
+   *
+   * An annual term is charged for PRICING.annualMonthsBilled months and runs
+   * for annualMonthsServed — the two extra months are given as time, not as a
+   * discount, so the per-month rate on the invoice stays the headline one.
+   */
+  private priceFor(tier: string, cycle: string, withLiveView = false): number {
+    if (!SELLABLE_TIERS.includes(normalizeTier(tier))) throw new BadRequestException("Unknown tier");
+    const months = cycle === "ANNUALLY" ? PRICING.annualMonthsBilled : 1;
+    const addOn = withLiveView ? PRICING.liveViewAddOnMonthly : 0;
+    return (priceForCycle(tier, "MONTHLY") + addOn) * months;
   }
 
   /** Start a checkout: creates a PaymentOrder + a Cashfree order, returns the session for the SDK. */
-  async checkout(orgId: string, d: { tier: string; cycle: string; seats: number }, returnUrl: string) {
+  async checkout(orgId: string, d: { tier: string; cycle: string; seats: number; liveView?: boolean }, returnUrl: string) {
     const cycle = d.cycle === "MONTHLY" ? "MONTHLY" : "ANNUALLY";
     const seats = Math.max(1, Math.floor(d.seats));
-    const amount = +(this.priceFor(d.tier, cycle) * seats).toFixed(2);
+    const liveView = !!d.liveView;
+    const amount = +(this.priceFor(d.tier, cycle, liveView) * seats).toFixed(2);
 
     const owner = await this.prisma.user.findFirst({ where: { orgId, role: "OWNER" }, select: { id: true, email: true } });
     const cfOrderId = `eag_${orgId.slice(-6)}_${randomBytes(4).toString("hex")}`;
@@ -40,7 +49,7 @@ export class BillingService {
     });
 
     await this.prisma.paymentOrder.create({
-      data: { orgId, cfOrderId: cf.cfOrderId, amount, currency: this.cashfree.currency, tier: d.tier, cycle, seats, paymentSessionId: cf.paymentSessionId },
+      data: { orgId, cfOrderId: cf.cfOrderId, amount, currency: this.cashfree.currency, tier: d.tier, cycle, seats, liveView, paymentSessionId: cf.paymentSessionId },
     });
 
     return {
@@ -100,13 +109,23 @@ export class BillingService {
     const now = new Date();
     const sub = await this.prisma.subscription.findUnique({ where: { orgId: order.orgId } });
     const base = sub?.validUntil && sub.validUntil > now ? new Date(sub.validUntil) : new Date(now);
-    if (order.cycle === "MONTHLY") base.setMonth(base.getMonth() + 1);
-    else base.setFullYear(base.getFullYear() + 1);
+    // An annual term is billed for 12 months and served for 14 — the two extra
+    // months are the annual deal, given as time rather than as a discount.
+    const months = order.cycle === "ANNUALLY" ? PRICING.annualMonthsServed : 1;
+    base.setMonth(base.getMonth() + months);
 
+    const data = {
+      tier: order.tier,
+      cycle: order.cycle,
+      seats: order.seats,
+      // Paying without the add-on drops it; paying with it turns it on.
+      liveView: order.liveView,
+      validUntil: base,
+    };
     await this.prisma.subscription.upsert({
       where: { orgId: order.orgId },
-      create: { orgId: order.orgId, tier: order.tier, cycle: order.cycle, seats: order.seats, validUntil: base },
-      update: { tier: order.tier, cycle: order.cycle, seats: order.seats, validUntil: base },
+      create: { orgId: order.orgId, ...data },
+      update: data,
     });
     await this.prisma.paymentOrder.update({ where: { id: order.id }, data: { status: "PAID", paidAt: now } });
     // Let the customer back in immediately rather than after the cache TTL.

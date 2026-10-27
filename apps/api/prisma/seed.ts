@@ -37,7 +37,7 @@ async function main() {
     update: {},
     create: {
       orgId: org.id,
-      tier: "PROFESSIONAL",
+      tier: "STANDARD",
       cycle: "ANNUALLY",
       seats: 10,
       validUntil: new Date("2026-08-22"),

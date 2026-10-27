@@ -6,6 +6,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { MailService } from "../mail/mail.service";
 import type { LoginResponse } from "@eagle/shared";
 import { accessSecret, refreshSecret } from "../config/secrets";
+import { PlanTier } from "@eagle/shared";
 
 const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 
@@ -41,7 +42,7 @@ export class AuthService {
       data: { orgId: org.id, email, name: d.ownerName.trim(), passwordHash: bcrypt.hashSync(d.password, 10), role: "OWNER" },
     });
     const trialEnd = new Date(Date.now() + 14 * 86400_000);
-    await this.prisma.subscription.create({ data: { orgId: org.id, tier: "PROFESSIONAL", seats: 5, cycle: "ANNUALLY", validUntil: trialEnd } });
+    await this.prisma.subscription.create({ data: { orgId: org.id, tier: PlanTier.PRO, seats: 5, cycle: "MONTHLY", validUntil: trialEnd } });
     await this.prisma.trackingSetting.create({ data: { orgId: org.id } });
 
     const tokens = await this.issueTokens(user.id, org.id, user.role, user.email);
