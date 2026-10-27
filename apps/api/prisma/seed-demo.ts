@@ -291,7 +291,7 @@ async function main() {
   await prisma.subscription.create({
     data: {
       orgId: org.id,
-      tier: "BUSINESS",
+      tier: "PRO",
       cycle: "ANNUALLY",
       seats: 15,
       validUntil: new Date(Date.now() + 300 * 86400_000),
