@@ -33,6 +33,14 @@ export interface PlanDefinition {
   listMonthly: number;
   recommended?: boolean;
   features: string[];
+  /**
+   * Real capabilities available on the plan that are not in its price. Kept
+   * out of `features` so the in-app plan cards, which tick every feature line
+   * with a check mark and have nowhere to put a footnote, never read as if
+   * these were included. The marketing pricing page lists them with a
+   * footnote marker instead.
+   */
+  addOnFeatures?: string[];
   limits: PlanLimits;
 }
 
@@ -71,10 +79,13 @@ export interface PlanLimits {
  * The catalogue: two plans with the same feature set, separated only by how
  * long data is kept. Prices are per seat, per month, in PRICING.currency.
  *
- * Live screen viewing is in neither plan — it is the per-seat add-on in
- * PRICING.liveViewAddOnMonthly, so it is deliberately absent from both
- * feature lists.
+ * Live screen viewing is in neither plan’s price — it is the per-seat add-on
+ * in PRICING.liveViewAddOnMonthly. It is available on both plans, so it sits
+ * in `addOnFeatures` rather than `features`: a buyer should be able to see
+ * that the capability exists, with the cost one footnote away.
  */
+export const LIVE_VIEW_FEATURE = "Live screen view";
+
 const SHARED_FEATURES = [
   "Automatic screenshots at your chosen interval",
   "App & website usage tracking",
@@ -101,6 +112,7 @@ const SELLABLE: Record<SellableTier, PlanDefinition> = {
     listMonthly: 499,
     annual: 299 * PRICING.annualMonthsBilled,
     features: ["30-day backup of screenshots and activity", ...SHARED_FEATURES],
+    addOnFeatures: [LIVE_VIEW_FEATURE],
     limits: { screenshotRetentionDays: 30, activityRetentionDays: 30, storageGb: 50, teams: Number.POSITIVE_INFINITY },
   },
   [PlanTier.PRO]: {
@@ -112,6 +124,7 @@ const SELLABLE: Record<SellableTier, PlanDefinition> = {
     annual: 399 * PRICING.annualMonthsBilled,
     recommended: true,
     features: ["90-day backup of screenshots and activity", ...SHARED_FEATURES],
+    addOnFeatures: [LIVE_VIEW_FEATURE],
     limits: { screenshotRetentionDays: 90, activityRetentionDays: 90, storageGb: 150, teams: Number.POSITIVE_INFINITY },
   },
 

@@ -117,15 +117,14 @@ export default function Pricing() {
           </a>
           .
         </p>
-        {/* Live screen viewing is not in either plan, and is deliberately not
-            sold here: one quiet line, no card and no badge, so it reads as an
-            answer to a question rather than an upsell. */}
-        <p className="mt-2 text-center text-xs text-inkSoft">
-          Live screen viewing is available as an add-on at {money(PRICING.liveViewAddOnMonthly)} per user per month —{" "}
-          <a href="/contact" className="hover:underline">
-            talk to us
-          </a>
-          .
+        {/* The footnote the asterisk on both cards points at. Live screen
+            viewing is offered on either plan but is not in either price, and
+            that is all this says: one quiet line at the smallest size on the
+            page, no card and no badge, so it reads as a disclosure rather
+            than an upsell. */}
+        <p id="add-on-note" className="mt-2 text-center text-xs text-inkSoft">
+          <span aria-hidden>*</span> Live screen view is an add-on at{" "}
+          {money(PRICING.liveViewAddOnMonthly)} per user per month, on either plan.
         </p>
       </Section>
 
@@ -205,6 +204,28 @@ function PlanCard({ plan, annual }: { plan: PlanDefinition; annual: boolean }) {
           <li key={f} className="flex gap-3">
             <span aria-hidden className="mt-2 h-1 w-1 shrink-0 rounded-full bg-gold" />
             <span>{f}</span>
+          </li>
+        ))}
+        {/* Available on the plan, not in its price. Listed alongside the rest
+            because a buyer comparing us needs to know the capability exists;
+            the asterisk carries the cost down to the footnote instead of
+            putting a second price on the card. The marker is a real link, so
+            it is reachable by keyboard and announced, not a loose glyph. */}
+        {(plan.addOnFeatures ?? []).map((f) => (
+          <li key={f} className="flex gap-3">
+            <span aria-hidden className="mt-2 h-1 w-1 shrink-0 rounded-full bg-gold" />
+            <span>
+              {f}
+              <a
+                href="#add-on-note"
+                aria-label={f + " — see add-on pricing note"}
+                className={`ml-0.5 align-super text-[0.65rem] no-underline hover:underline ${
+                  featured ? "text-paper/50" : "text-inkSoft"
+                }`}
+              >
+                *
+              </a>
+            </span>
           </li>
         ))}
       </ul>
