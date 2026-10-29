@@ -40,7 +40,13 @@ export function Nav() {
   const { pathname } = useLocation();
 
   // Close the mobile sheet on navigation, otherwise it covers the new page.
-  useEffect(() => setOpen(false), [pathname]);
+  // Braces matter: a concise arrow body returns the call's result, and React
+  // takes an effect's return value as its cleanup function. Anything truthy
+  // and not callable then throws on unmount — which blanked the page on every
+  // client-side navigation.
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
 
   return (
     <header className="sticky top-0 z-50 border-b border-rule bg-paper/90 backdrop-blur">

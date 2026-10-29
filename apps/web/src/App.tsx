@@ -17,7 +17,11 @@ import NotFound from "./pages/NotFound";
 /** Browsers keep the old scroll offset across client-side navigations. */
 function ScrollToTop() {
   const { pathname } = useLocation();
-  useEffect(() => window.scrollTo(0, 0), [pathname]);
+  // Braces, not a concise body: an effect's return value is taken as its
+  // cleanup function, and a non-callable one throws when the route unmounts.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
   return null;
 }
 
