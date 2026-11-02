@@ -75,8 +75,8 @@ export default function ResponsibleUse() {
         <p>
           If you believe an Workk account is being used against these rules — including if you are
           the person being monitored — contact{" "}
-          <a href={`mailto:${CONTACT.privacy}`} className="font-semibold text-goldDeep hover:underline">
-            {CONTACT.privacy}
+          <a href={`mailto:${CONTACT.email}`} className="font-semibold text-goldDeep hover:underline">
+            {CONTACT.email}
           </a>
           . We investigate every report, and we do not disclose the reporter to the account holder.
         </p>

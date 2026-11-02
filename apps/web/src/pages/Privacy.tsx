@@ -109,8 +109,8 @@ export default function Privacy() {
           raise your request with them first. We will assist them in fulfilling it, and the
           dashboard provides bulk export and deletion for exactly this purpose. If you cannot get a
           response from your employer, contact us at{" "}
-          <a href={`mailto:${CONTACT.privacy}`} className="font-semibold text-goldDeep hover:underline">
-            {CONTACT.privacy}
+          <a href={`mailto:${CONTACT.email}`} className="font-semibold text-goldDeep hover:underline">
+            {CONTACT.email}
           </a>{" "}
           and we will do what we can within our role as processor.
         </p>
@@ -128,8 +128,8 @@ export default function Privacy() {
         <p>
           Material changes will be notified to account administrators by email before they take
           effect. Questions or requests:{" "}
-          <a href={`mailto:${CONTACT.privacy}`} className="font-semibold text-goldDeep hover:underline">
-            {CONTACT.privacy}
+          <a href={`mailto:${CONTACT.email}`} className="font-semibold text-goldDeep hover:underline">
+            {CONTACT.email}
           </a>
           , or {CONTACT.phone}.
         </p>

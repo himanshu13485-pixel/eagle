@@ -102,8 +102,8 @@ export default function Contact() {
                   {status === "error" && (
                     <p role="alert" className="text-sm text-red-700">
                       {error}. You can also email us directly at{" "}
-                      <a href={`mailto:${CONTACT.sales}`} className="font-semibold underline">
-                        {CONTACT.sales}
+                      <a href={`mailto:${CONTACT.email}`} className="font-semibold underline">
+                        {CONTACT.email}
                       </a>
                       .
                     </p>
@@ -131,9 +131,11 @@ export default function Contact() {
                 <Eyebrow index="02">Direct</Eyebrow>
                 <dl className="mt-6 space-y-6 text-sm">
                   <Detail term="Phone" href={CONTACT.phoneHref}>{CONTACT.phone}</Detail>
-                  <Detail term="Sales" href={`mailto:${CONTACT.sales}`}>{CONTACT.sales}</Detail>
-                  <Detail term="General" href={`mailto:${CONTACT.email}`}>{CONTACT.email}</Detail>
-                  <Detail term="Privacy requests" href={`mailto:${CONTACT.privacy}`}>{CONTACT.privacy}</Detail>
+                  {/* One address, for everything — sales, privacy requests and
+                      general questions alike. Splitting them across three
+                      mailboxes only tells people which one to blame when no
+                      reply arrives. */}
+                  <Detail term="Email" href={`mailto:${CONTACT.email}`}>{CONTACT.email}</Detail>
                 </dl>
               </div>
               <div className="hairline pt-6">

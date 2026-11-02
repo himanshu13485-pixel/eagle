@@ -14,9 +14,14 @@ export const CONTACT = {
   phone: BRAND.supportPhone,
   /** tel: links must be digits only. */
   phoneHref: `tel:${BRAND.supportPhone.replace(/[^\d+]/g, "")}`,
+  /**
+   * One public mailbox, deliberately. sales@ and privacy@ were printed here,
+   * on the contact page and in the privacy policy without ever being created,
+   * so anything sent to them bounced — and a dead address in a legal clause is
+   * worse than no address. Everything public routes to this one; it has to
+   * stay a real, monitored mailbox.
+   */
   email: "hello@workk.work",
-  sales: "sales@workk.work",
-  privacy: "privacy@workk.work",
 } as const;
 
 export const NAV_LINKS = [
