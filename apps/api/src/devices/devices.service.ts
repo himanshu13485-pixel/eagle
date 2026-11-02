@@ -5,6 +5,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeGateway } from "../realtime/realtime.gateway";
 import {
   AgentConfig,
+  resolveWorkWindow,
   DEFAULT_AGENT_CONFIG,
   EnrollDeviceResponse,
   PresenceStatus,
@@ -117,7 +118,9 @@ export class DevicesService {
     const base = await this.configForOrg(orgId);
     const emp = await this.prisma.employee.findUnique({
       where: { id: employeeId },
-      select: { settingsJson: true, active: true },
+      // The shift comes along because monitoring hours are gated on it; see
+      // the workWindow resolution below.
+      select: { settingsJson: true, active: true, shift: true },
     });
     let cfg = base;
     if (emp?.settingsJson) {
@@ -131,8 +134,19 @@ export class DevicesService {
         /* ignore malformed override */
       }
     }
+    // Resolved last, and never from the override blob: the window is derived
+    // from the roster, not something a bulk update should be able to set to an
+    // arbitrary pair of times.
+    //
+    // No shift means no window, even with the setting on. "Only monitor during
+    // the shift" for someone who has not been rostered has to mean "carry on as
+    // before" — reading it as "monitor nothing" would silently stop collecting
+    // for anyone the admin forgot to roster, and they would not find out until
+    // they went looking for screenshots that were never taken.
+    const workWindow = cfg.monitorDuringShiftOnly && emp?.shift ? resolveWorkWindow(emp.shift) : null;
+
     // Deactivated employee → agent goes dormant (no captures/streaming).
-    return { ...cfg, paused: emp ? !emp.active : false };
+    return { ...cfg, paused: emp ? !emp.active : false, workWindow };
   }
 
   async configForOrg(orgId: string): Promise<AgentConfig> {
@@ -150,6 +164,10 @@ export class DevicesService {
       strictTimeTracking: s.strictTimeTracking,
       heartbeatSec: DEFAULT_AGENT_CONFIG.heartbeatSec,
       paused: false,
+      monitorDuringShiftOnly: s.monitorDuringShiftOnly,
+      // Needs an employee to resolve against, so the org-wide view never
+      // carries one. configForEmployee fills it in.
+      workWindow: null,
       blockedSites: parseCsv(s.blockedSites),
     };
   }

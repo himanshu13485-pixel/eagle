@@ -16,6 +16,9 @@ interface TrackingSettings {
   idleAfterMin: number;
   trackingMode: TrackingMode;
   strictTimeTracking: boolean;
+  /** Gate every agent on its employee’s rostered shift. Edited on the Shift
+   *  tab, where the hours it reads actually live. */
+  monitorDuringShiftOnly: boolean;
   reportRecipients: string;
   blockedSites: string; // CSV of hosts
 }
@@ -797,27 +800,66 @@ function SaveBar({ saved, onSave }: { saved: boolean; onSave: () => void }) {
 }
 
 /* ---------------- Shift ---------------- */
-interface Shift { id: string; name: string; timezone: string; startTime: string; endTime: string; workingDays: number[] }
+interface Shift { id: string; name: string; timezone: string; startTime: string; endTime: string; workingDays: number[]; graceBeforeMin: number; graceAfterMin: number }
 const DAYS = [{ n: 1, l: "Mon" }, { n: 2, l: "Tue" }, { n: 3, l: "Wed" }, { n: 4, l: "Thu" }, { n: 5, l: "Fri" }, { n: 6, l: "Sat" }, { n: 7, l: "Sun" }];
+
+const NEW_SHIFT = { name: "", timezone: "Asia/Kolkata", startTime: "09:00", endTime: "17:00", workingDays: [1, 2, 3, 4, 5], graceBeforeMin: 15, graceAfterMin: 15 };
+
+/** "09:00" shifted by some minutes, wrapping over midnight — used to show the
+ *  monitored range next to the rostered one. */
+function shiftClock(hhmm: string, deltaMin: number): string {
+  const [h, m] = hhmm.split(":").map(Number);
+  if (!Number.isFinite(h) || !Number.isFinite(m)) return hhmm;
+  const total = (((h * 60 + m + deltaMin) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
 
 function ShiftTab() {
   const [shifts, setShifts] = useState<Shift[]>([]);
-  const [f, setF] = useState({ name: "", timezone: "UTC", startTime: "09:00", endTime: "17:00", workingDays: [1, 2, 3, 4, 5] });
-  function load() { api<Shift[]>("/shifts").then(setShifts).catch(() => setShifts([])); }
+  const [employees, setEmployees] = useState<EmployeeDto[]>([]);
+  const [f, setF] = useState(NEW_SHIFT);
+  const [err, setErr] = useState("");
+  function load() {
+    api<Shift[]>("/shifts").then(setShifts).catch(() => setShifts([]));
+    api<EmployeeDto[]>("/employees").then(setEmployees).catch(() => setEmployees([]));
+  }
   useEffect(load, []);
   const toggleDay = (n: number) => setF((c) => ({ ...c, workingDays: c.workingDays.includes(n) ? c.workingDays.filter((d) => d !== n) : [...c.workingDays, n].sort() }));
-  async function create() { if (!f.name.trim()) return; await api("/shifts", { method: "POST", body: JSON.stringify(f) }); setF({ name: "", timezone: "UTC", startTime: "09:00", endTime: "17:00", workingDays: [1, 2, 3, 4, 5] }); load(); }
+  async function create() {
+    if (!f.name.trim()) return;
+    setErr("");
+    try {
+      await api("/shifts", { method: "POST", body: JSON.stringify(f) });
+      setF(NEW_SHIFT);
+      load();
+    } catch (e) {
+      // The server rejects an unknown timezone and a malformed time, because a
+      // window it cannot read is a window it cannot enforce. Say which.
+      setErr(e instanceof Error ? e.message : "Could not create the shift");
+    }
+  }
   async function remove(id: string) { await api(`/shifts/${id}`, { method: "DELETE" }); load(); }
   return (
     <>
-    <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+    <MonitoringHoursCard shifts={shifts} employees={employees} />
+    <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
       <div className="rounded-2xl bg-white p-5 shadow-sm">
         <h3 className="mb-4 font-bold text-gray-900">Shift Management</h3>
         {shifts.length ? (
           <div className="space-y-2">
             {shifts.map((s) => (
               <div key={s.id} className="flex items-center justify-between rounded-xl bg-gray-50 p-4">
-                <div><p className="font-semibold text-gray-900">{s.name}</p><p className="text-xs text-gray-500">{s.startTime}–{s.endTime} · {s.timezone} · {s.workingDays.map((d) => DAYS.find((x) => x.n === d)?.l).join(" ")}</p></div>
+                <div>
+                  <p className="font-semibold text-gray-900">{s.name}</p>
+                  <p className="text-xs text-gray-500">{s.startTime}–{s.endTime} · {s.timezone} · {s.workingDays.map((d) => DAYS.find((x) => x.n === d)?.l).join(" ")}</p>
+                  {/* The rostered hours and the monitored hours are not the same
+                      range, and confusing them is how you end up wondering why
+                      there is a screenshot at 08:47. */}
+                  <p className="mt-0.5 text-xs text-gray-400">
+                    Monitored {shiftClock(s.startTime, -(s.graceBeforeMin ?? 0))}–{shiftClock(s.endTime, s.graceAfterMin ?? 0)}
+                    {(s.graceBeforeMin ?? 0) + (s.graceAfterMin ?? 0) > 0 ? ` (${s.graceBeforeMin ?? 0}m before, ${s.graceAfterMin ?? 0}m after)` : ""}
+                  </p>
+                </div>
                 <button onClick={() => remove(s.id)} className="text-xs text-red-500 hover:underline">Delete</button>
               </div>
             ))}
@@ -836,12 +878,74 @@ function ShiftTab() {
           <div className="flex flex-wrap gap-1.5">
             {DAYS.map((d) => <button key={d.n} onClick={() => toggleDay(d.n)} className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${f.workingDays.includes(d.n) ? "bg-brand text-white" : "bg-gray-100 text-gray-500"}`}>{d.l}</button>)}
           </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-600">Monitoring grace (minutes)</p>
+            {/* Spelled out because zero grace has a non-obvious consequence:
+                with no data before the shift, a late arrival has nothing to be
+                late against, so lateness silently always reads "on time". */}
+            <p className="mt-0.5 text-[11px] leading-snug text-gray-400">
+              Monitoring starts this early and ends this late. Keep a few minutes so arriving late is still visible on the Timesheet.
+            </p>
+            <div className="mt-2 flex gap-2">
+              <input type="number" min={0} max={720} value={f.graceBeforeMin} onChange={(e) => setF({ ...f, graceBeforeMin: Math.max(0, Number(e.target.value) || 0) })} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm" placeholder="before" />
+              <input type="number" min={0} max={720} value={f.graceAfterMin} onChange={(e) => setF({ ...f, graceAfterMin: Math.max(0, Number(e.target.value) || 0) })} className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm" placeholder="after" />
+            </div>
+          </div>
+          {err && <p className="text-xs font-semibold text-red-600">{err}</p>}
           <button onClick={create} className="w-full rounded-xl bg-brand px-4 py-2.5 text-sm font-bold text-white hover:bg-brand-dark">+ Create Shift</button>
         </div>
       </div>
     </div>
     <RosterPanel shifts={shifts} />
     </>
+  );
+}
+
+/**
+ * The switch that turns a roster into a monitoring window.
+ *
+ * Lives here rather than under Tracking Controls because it does nothing on its
+ * own — it only has meaning next to the shifts it reads, and this is where
+ * somebody looking for "only monitor 9 to 5" comes to find it.
+ */
+function MonitoringHoursCard({ shifts, employees }: { shifts: Shift[]; employees: EmployeeDto[] }) {
+  const { s, patch, save, saved } = useSettings();
+  if (!s) return null;
+  const on = s.monitorDuringShiftOnly;
+  // Only active people matter: a deactivated employee is already dormant.
+  const unrostered = employees.filter((e) => e.active && !e.shiftId);
+
+  return (
+    <div className="rounded-2xl bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div className="max-w-2xl">
+          <h3 className="font-bold text-gray-900">Only monitor during shift hours</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Outside their shift the agent goes completely quiet — no screenshots, no app or website tracking, no live
+            view. It is decided on the employee&rsquo;s own computer, so it still applies when they are offline.
+          </p>
+          <p className="mt-1 text-sm text-gray-400">
+            Work done outside those hours is not recorded at all, so it will not reach the Timesheet either.
+          </p>
+        </div>
+        <Toggle on={on} onChange={(v) => { patch({ monitorDuringShiftOnly: v }); save({ monitorDuringShiftOnly: v }); }} />
+      </div>
+
+      {on && !shifts.length && (
+        <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          No shifts exist yet, so nothing is limited — everyone is still monitored whenever their PC is on. Create a
+          shift below and roster people onto it.
+        </p>
+      )}
+      {on && shifts.length > 0 && unrostered.length > 0 && (
+        <p className="mt-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <b>{unrostered.length} {unrostered.length === 1 ? "person is" : "people are"} not on a shift</b> and are still
+          monitored around the clock: {unrostered.slice(0, 6).map((e) => e.name).join(", ")}
+          {unrostered.length > 6 ? ` and ${unrostered.length - 6} more` : ""}. Roster them below to limit their hours.
+        </p>
+      )}
+      {saved && <p className="mt-3 text-sm font-medium text-green-600">Saved. Agents pick this up within a minute.</p>}
+    </div>
   );
 }
 

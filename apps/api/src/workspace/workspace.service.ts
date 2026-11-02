@@ -32,7 +32,15 @@ export class WorkspaceService {
   }
   createShift(
     orgId: string,
-    d: { name: string; timezone: string; startTime: string; endTime: string; workingDays: number[] },
+    d: {
+      name: string;
+      timezone: string;
+      startTime: string;
+      endTime: string;
+      workingDays: number[];
+      graceBeforeMin?: number;
+      graceAfterMin?: number;
+    },
   ) {
     return this.prisma.shift.create({
       data: {
@@ -42,6 +50,10 @@ export class WorkspaceService {
         startTime: d.startTime,
         endTime: d.endTime,
         workingDays: (d.workingDays ?? [1, 2, 3, 4, 5]).join(","),
+        // Left to the column defaults when not given, so an older client that
+        // does not know about grace still creates a usable shift.
+        ...(typeof d.graceBeforeMin === "number" ? { graceBeforeMin: d.graceBeforeMin } : {}),
+        ...(typeof d.graceAfterMin === "number" ? { graceAfterMin: d.graceAfterMin } : {}),
       },
     });
   }

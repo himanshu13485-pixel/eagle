@@ -1,3 +1,4 @@
+import type { WorkWindow } from "./work-window.js";
 import {
   ActivityCategory,
   DevicePlatform,
@@ -79,6 +80,22 @@ export interface AgentConfig {
   strictTimeTracking: boolean;
   heartbeatSec: number; // presence ping cadence
   paused: boolean; // true when the employee is deactivated → agent goes dormant
+  /**
+   * Only monitor while the employee is inside their rostered shift. Carried in
+   * the config (rather than resolved away) so a per-employee override in
+   * Employee.settingsJson can turn it on for one work-from-home person without
+   * changing the company, exactly like every other field here.
+   */
+  monitorDuringShiftOnly: boolean;
+  /**
+   * The resolved window, when the above is on and the employee actually has a
+   * shift. Null means monitor whenever the machine is on — including when
+   * monitorDuringShiftOnly is set but nobody has been rostered yet, because
+   * "no shift" must not silently mean "no monitoring".
+   *
+   * Sent pre-flattened so the agent can decide offline; see WorkWindow.
+   */
+  workWindow: WorkWindow | null;
   /** Website hosts the agent should block in browsers (e.g. "facebook.com").
    *  Enforced via browser policy + hosts file where the agent runs elevated,
    *  with a best-effort close-the-tab fallback otherwise. Empty = block nothing. */
@@ -97,6 +114,8 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   strictTimeTracking: true,
   heartbeatSec: 20,
   paused: false,
+  monitorDuringShiftOnly: false,
+  workWindow: null,
   blockedSites: [],
 };
 

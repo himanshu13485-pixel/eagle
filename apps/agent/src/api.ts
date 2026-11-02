@@ -3,6 +3,8 @@
  * Kept self-contained so the agent can be packaged/installed independently.
  */
 
+import type { WorkWindow } from "./work-window";
+
 export interface AgentConfig {
   periodicScreenshots: boolean;
   screenshotIntervalMin: number;
@@ -16,6 +18,12 @@ export interface AgentConfig {
   paused?: boolean;
   /** Hosts to block in browsers. Absent on older servers → treat as none. */
   blockedSites?: string[];
+  /** Only monitor inside the rostered shift. Informational here — the server
+   *  resolves it into workWindow; absent on older servers → not gated. */
+  monitorDuringShiftOnly?: boolean;
+  /** The window monitoring is allowed in, already flattened by the server.
+   *  Null or absent → monitor whenever the machine is on. */
+  workWindow?: WorkWindow | null;
 }
 
 export type Presence = "ACTIVE" | "IDLE" | "OFFLINE";

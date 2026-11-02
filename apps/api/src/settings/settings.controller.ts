@@ -17,6 +17,9 @@ class UpdateSettingsDto {
   @IsOptional() @IsInt() @Min(1) @Max(60) idleAfterMin?: number;
   @IsOptional() @IsEnum(TrackingMode) trackingMode?: TrackingMode;
   @IsOptional() @IsBoolean() strictTimeTracking?: boolean;
+  /** Gate every agent on its employee’s rostered shift. Employees with no
+   *  shift keep being monitored as before — see DevicesService. */
+  @IsOptional() @IsBoolean() monitorDuringShiftOnly?: boolean;
 }
 
 class BulkDto {

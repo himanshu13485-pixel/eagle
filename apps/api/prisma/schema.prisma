@@ -292,6 +292,11 @@ model TrackingSetting {
   reportRecipients      String       @default("") // CSV of emails that receive scheduled reports (max 5)
   // Hosts the agent blocks in browsers, CSV (SQLite has no scalar lists), e.g. "facebook.com,x.com".
   blockedSites          String       @default("")
+  // Gate the agent on the rostered shift: outside it the agent goes fully
+  // dormant (no captures, no activity, no live view). Off by default so an
+  // existing customer does not silently stop being monitored on upgrade.
+  // Overridable per employee through Employee.settingsJson.
+  monitorDuringShiftOnly Boolean     @default(false)
   updatedAt             DateTime     @updatedAt
 }
 
@@ -304,6 +309,12 @@ model Shift {
   startTime   String       @default("09:00")
   endTime     String       @default("17:00")
   workingDays String       @default("1,2,3,4,5") // CSV of ISO weekday numbers
+  // Monitoring opens this many minutes early and closes this late. Without any
+  // slack nobody could ever be marked late: there would be no data before the
+  // shift for a late arrival to be late against. The shift itself, and every
+  // timesheet figure from it, still uses startTime/endTime exactly.
+  graceBeforeMin Int       @default(15)
+  graceAfterMin  Int       @default(15)
   createdAt   DateTime     @default(now())
 
   employees Employee[]

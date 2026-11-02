@@ -1,6 +1,6 @@
-import { Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Query, Res, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Query, Res, UseGuards } from "@nestjs/common";
 import type { Response } from "express";
-import { IsArray, IsIn, IsOptional, IsString } from "class-validator";
+import { IsArray, IsIn, IsInt, IsOptional, IsString, Matches, Max, Min } from "class-validator";
 import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import { CurrentUser, RequestUser } from "../auth/current-user.decorator";
 import { WorkspaceService } from "./workspace.service";
@@ -10,9 +10,14 @@ import { StorageService } from "../storage/storage.service";
 class ShiftDto {
   @IsString() name!: string;
   @IsString() timezone!: string;
-  @IsString() startTime!: string;
-  @IsString() endTime!: string;
+  // Validated here, not just parsed later: these times now gate whether the
+  // agent runs at all, and resolveWorkWindow deliberately fails open on
+  // nonsense. Rejecting "9am" at the door beats silently not gating.
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: "startTime must be HH:MM" }) startTime!: string;
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/, { message: "endTime must be HH:MM" }) endTime!: string;
   @IsOptional() @IsArray() workingDays?: number[];
+  @IsOptional() @IsInt() @Min(0) @Max(720) graceBeforeMin?: number;
+  @IsOptional() @IsInt() @Min(0) @Max(720) graceAfterMin?: number;
 }
 class DataReqDto {
   @IsIn(["EXPORT", "DELETE"]) action!: string;
@@ -46,7 +51,12 @@ export class WorkspaceController {
   }
   @Post("shifts")
   createShift(@CurrentUser() u: RequestUser, @Body() dto: ShiftDto) {
-    return this.ws.createShift(u.orgId, { ...dto, workingDays: dto.workingDays ?? [1, 2, 3, 4, 5] });
+    // Same reasoning as the time fields: an unresolvable zone makes the window
+    // unreadable, and an unreadable window is not enforced. Catch it now.
+    if (!isKnownTimezone(dto.timezone)) throw new BadRequestException("Unknown timezone");
+    const days = (dto.workingDays ?? [1, 2, 3, 4, 5]).filter((d) => Number.isInteger(d) && d >= 1 && d <= 7);
+    if (!days.length) throw new BadRequestException("A shift needs at least one working day");
+    return this.ws.createShift(u.orgId, { ...dto, workingDays: days });
   }
   @Delete("shifts/:id")
   removeShift(@CurrentUser() u: RequestUser, @Param("id") id: string) {
@@ -121,5 +131,17 @@ export class WorkspaceController {
   @Post("support/:id/reply")
   supportReply(@CurrentUser() u: RequestUser, @Param("id") id: string, @Body() body: { body: string }) {
     return this.ws.replySupport(u.orgId, id, u.email, body.body);
+  }
+}
+
+/** Is this a zone Intl can actually resolve? A shift stored with a bogus zone
+ *  would make its monitoring window unreadable, and an unreadable window is
+ *  treated as "no window" — so the roster would look set but enforce nothing. */
+function isKnownTimezone(tz: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: tz });
+    return true;
+  } catch {
+    return false;
   }
 }

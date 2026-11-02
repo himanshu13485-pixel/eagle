@@ -11,6 +11,7 @@ import { AGENT_BUILD } from "./build-info";
 import { Updater, relaunchWindows, cleanupPreviousUpdate } from "./updater";
 import { UPDATE_PUBLIC_KEY } from "./update-key";
 import { acquireSingleInstance, launcherFor, registerTask, repairAutostart } from "./watchdog";
+import { isWithinWorkWindow } from "./work-window";
 
 // The build number rides along so the dashboard shows which PCs have picked up
 // an automatic update.
@@ -47,6 +48,10 @@ class Agent {
   private lastAppSwitchAt = 0;
   // Visible ("Regular") mode: the employee can Clock In / Pause / Clock Out from a tray icon.
   private working = true;
+  /** Last known answer from withinWorkHours(), so the transition is logged once
+   *  instead of every tick. Support needs to see "went off shift at 17:15" in
+   *  the log; it does not need it 2,000 times. */
+  private onShift = true;
   private trackedTodaySec = 0;
   private trackedDay = "";
   private control: Control;
@@ -98,9 +103,24 @@ class Agent {
   private async tick() {
     const now = Date.now();
 
-    // Dormant when deactivated (server) OR clocked-out/paused by the employee (visible mode):
-    // no probes/captures/streaming, just a slow OFFLINE heartbeat.
-    if (this.cfg.paused || !this.working) {
+    // Outside rostered hours the agent is as dormant as a deactivated one.
+    // Evaluated locally from the window the server sent, so a laptop with no
+    // connection still stops on time — which is the whole point for someone
+    // working from home.
+    const onShift = this.withinWorkHours();
+    if (onShift !== this.onShift) {
+      this.onShift = onShift;
+      console.log(`[shift] ${onShift ? "within" : "outside"} monitored hours`);
+      // Close the open activity session on the way out, or the last app of the
+      // day runs until the next tick that happens to be on shift — which the
+      // timesheet would read as working all night.
+      if (!onShift) await this.rollSession(null, null, false).catch(() => {});
+    }
+
+    // Dormant when deactivated (server), clocked-out/paused by the employee
+    // (visible mode), or off shift: no probes/captures/streaming, just a slow
+    // OFFLINE heartbeat.
+    if (this.cfg.paused || !this.working || !onShift) {
       if (now - this.lastHeartbeat >= this.cfg.heartbeatSec * 1000) {
         this.lastHeartbeat = now;
         try {
@@ -190,6 +210,18 @@ class Agent {
     this.nextPeriodicAt = now + Math.max(1, this.cfg.screenshotIntervalMin) * 60_000;
   }
 
+  /** May anything be captured right now? */
+  monitoringAllowed(): boolean {
+    return !this.cfg.paused && this.working && this.withinWorkHours();
+  }
+
+  /** Inside the rostered monitoring window — always true when no window is set,
+   *  which is both the default and what an unrostered employee gets. */
+  private withinWorkHours(): boolean {
+    const w = this.cfg.workWindow;
+    return w ? isWithinWorkWindow(w) : true;
+  }
+
   private async rollSession(app: string | null, url: string | null, idle: boolean) {
     if (this.session) {
       const item = {
@@ -221,6 +253,14 @@ class Agent {
   }
 
   private async capture(trigger: "PERIODIC" | "APP_SWITCH" | "ON_DEMAND", app: string | null, url: string | null, isIdle: boolean) {
+    // The last gate before anything is stored, and the only one that is always
+    // current. tick() decides dormancy from the config it held at the top of
+    // the loop, an app-switch shot is scheduled on a delay, and on a cold start
+    // the periodic timer is already due before the first heartbeat has
+    // delivered a window at all — so a laptop opened at 22:00 would otherwise
+    // get one screenshot off the clock. Every stored capture passes here.
+    if (!this.monitoringAllowed()) return;
+
     let img: Buffer;
     try {
       img = await captureJpeg(this.cfg.webcamPhotos, this.maxHeight());
@@ -246,7 +286,9 @@ class Agent {
   /** On-demand screenshot (dashboard "Screenshot request"). Always a fast plain
    *  screen grab — never the webcam path, so the request returns promptly. */
   async captureNow() {
-    if (this.cfg.paused) return;
+    // Off-shift has to block this as well. A gate an admin can step around by
+    // pressing "Screenshot request" is not a gate.
+    if (!this.monitoringAllowed()) return;
     const fg = await getForeground();
     console.log("[capture] on-demand request");
     let img: Buffer;
@@ -350,8 +392,15 @@ async function main() {
 
   // Live screen streaming + on-demand screenshot requests over the socket.
   if (local.deviceToken && local.employeeId) {
-    connectLive(local.serverUrl, local.deviceToken, local.employeeId, () =>
-      agent.captureNow().catch((e) => console.error("[capture-now]", e.message)),
+    connectLive(
+      local.serverUrl,
+      local.deviceToken,
+      local.employeeId,
+      () => agent.captureNow().catch((e) => console.error("[capture-now]", e.message)),
+      // Live view is gated on the same answer. Otherwise "we only monitor 9 to 5"
+      // would still let someone watch the screen at 9pm, which is exactly the
+      // promise the setting is making.
+      () => agent.monitoringAllowed(),
     );
   }
 

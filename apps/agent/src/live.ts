@@ -16,6 +16,11 @@ export function connectLive(
   deviceToken: string,
   employeeId: string,
   onCaptureNow?: () => void,
+  /** Asked before every frame. Live view is monitoring too, so it has to obey
+   *  the same pause/clock-out/off-shift answer as a screenshot — otherwise a
+   *  viewer could watch a screen outside the hours the account promised to
+   *  monitor. Absent → always allowed, for callers that do not gate. */
+  canStream?: () => boolean,
 ): Socket {
   const socket = io(serverUrl, {
     auth: { deviceToken },
@@ -39,6 +44,9 @@ export function connectLive(
     announceMonitors();
     timer = setInterval(async () => {
       if (busy) return;
+      // Checked per frame rather than only on attach: a viewer who was
+      // watching at 16:59 must stop at 17:15, not keep the stream open.
+      if (canStream && !canStream()) return;
       busy = true;
       try {
         const img = await captureLive(monitor, LIVE_MAX_WIDTH, LIVE_QUALITY);
