@@ -336,6 +336,17 @@ function ScreenshotTab() {
 /* ---------------- Productivity categories ---------------- */
 interface Observed { type: string; name: string; totalSec: number; category: ActivityCategory; custom: boolean }
 
+/** A stored per-app/per-site override, as /categories/rules returns it. Group
+ *  overrides come back on the same endpoint with a groupKey and no pattern. */
+interface StoredRule {
+  id: string;
+  type: string | null;
+  pattern: string | null;
+  groupKey: string | null;
+  category: ActivityCategory;
+  employeeId: string | null;
+}
+
 const CATEGORY_STYLE: Record<string, string> = {
   PRODUCTIVE: "bg-green-100 text-green-700",
   UNPRODUCTIVE: "bg-rose-100 text-rose-600",
@@ -371,6 +382,13 @@ function ProductivityTab() {
   const [filter, setFilter] = useState<"all" | "app" | "web">("all");
   const [q, setQ] = useState("");
   const [toast, setToast] = useState("");
+  // "Add an app or website" — the only way to classify something nobody has
+  // opened yet, since the list below is built from recorded usage.
+  const [addType, setAddType] = useState<UsageType>(UsageType.WEB);
+  const [addName, setAddName] = useState("");
+  const [addCategory, setAddCategory] = useState<ActivityCategory>(ActivityCategory.PRODUCTIVE);
+  const [addErr, setAddErr] = useState("");
+  const [rules, setRules] = useState<StoredRule[]>([]);
 
   // Built as a full query string so each URL reads normally rather than
   // needing a filler parameter to hang "&employeeId" off.
@@ -381,6 +399,7 @@ function ProductivityTab() {
   const load = () => {
     api<CategoryGroupRow[]>(`/categories/groups${scope ? `?${scopeParam}` : ""}`).then(setGroups).catch(() => setGroups([]));
     api<Observed[]>(`/categories/observed?days=30${scopeQuery}`).then(setRows).catch(() => setRows([]));
+    api<StoredRule[]>(`/categories/rules${scope ? `?${scopeParam}` : ""}`).then(setRules).catch(() => setRules([]));
   };
   useEffect(load, [scope]);
   useEffect(() => { api<EmployeeDto[]>("/employees").then(setEmployees).catch(() => {}); }, []);
@@ -409,6 +428,44 @@ function ProductivityTab() {
     }
   }
 
+  /**
+   * Store a verdict for something that may never have been seen.
+   *
+   * A website is reduced to its bare host, because matching is "does the
+   * recorded name contain this pattern" — so "mailchimp.com" covers every page
+   * on the site, while a pasted URL with a path would only ever match that one
+   * page. App names are matched the same way against whatever Windows reports,
+   * so they are left as typed beyond trimming.
+   */
+  async function addRule() {
+    const raw = addName.trim();
+    if (!raw) return;
+    const pattern = addType === UsageType.WEB ? hostOf(raw) : raw;
+    if (!pattern) {
+      setAddErr("That does not look like a website. Try something like mailchimp.com.");
+      return;
+    }
+    setAddErr("");
+    try {
+      await api("/categories/rules", {
+        method: "POST",
+        body: JSON.stringify({ type: addType, pattern, category: addCategory, ...(scope ? { employeeId: scope } : {}) }),
+      });
+      setAddName("");
+      load();
+      setToast(`${pattern} counts as ${CATEGORY_LABEL[addCategory].toLowerCase()}${scope ? ` for ${scopeName}` : ""}.`);
+    } catch {
+      setAddErr("Couldn't save that. Try again.");
+    }
+  }
+
+  async function removeRule(id: string) {
+    try {
+      await api(`/categories/rules/${id}`, { method: "DELETE" });
+      load();
+    } catch { setToast("Couldn't remove that."); }
+  }
+
   async function resetAll() {
     const what = scope ? `${scopeName}'s own rules` : "all your custom rules";
     if (!confirm(`Remove ${what} and go back to ${scope ? "the company settings" : "the defaults"}?`)) return;
@@ -423,6 +480,24 @@ function ProductivityTab() {
     const needle = q.trim().toLowerCase();
     return (rows ?? []).filter((r) => (filter === "all" || r.type.toLowerCase() === filter) && (!needle || r.name.toLowerCase().includes(needle)));
   }, [rows, filter, q]);
+
+  /**
+   * Added rules that nothing has matched yet.
+   *
+   * Compared the way the classifier compares — does the recorded name *contain*
+   * the pattern — rather than by exact name, so a host rule counts as seen once
+   * any page on that site has been visited.
+   */
+  const unseenRules = useMemo(
+    () =>
+      rules.filter(
+        (r) =>
+          r.pattern &&
+          r.type &&
+          !(rows ?? []).some((o) => o.type === r.type && o.name.toLowerCase().includes(r.pattern!.toLowerCase())),
+      ),
+    [rules, rows],
+  );
 
   const totals = useMemo(() => {
     const t: Record<string, number> = { PRODUCTIVE: 0, UNPRODUCTIVE: 0, NEUTRAL: 0 };
@@ -511,6 +586,88 @@ function ProductivityTab() {
               ))}
             </div>
           </>
+        )}
+      </Card>
+
+      <Card
+        title="Add an app or website"
+        desc="Classify something before anyone uses it, or fix something used too long ago to appear below. Websites match the host and everything under it, so one entry covers every page on the site."
+      >
+        <div className="flex flex-wrap items-end gap-2">
+          <div>
+            <label className="text-xs font-semibold text-gray-600">Type</label>
+            <select
+              value={addType}
+              onChange={(e) => { setAddType(e.target.value as UsageType); setAddErr(""); }}
+              className="mt-1 block rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+            >
+              <option value={UsageType.WEB}>Website</option>
+              <option value={UsageType.APP}>App</option>
+            </select>
+          </div>
+          <div className="min-w-[14rem] flex-1">
+            <label className="text-xs font-semibold text-gray-600">
+              {addType === UsageType.WEB ? "Website" : "App name, as Windows reports it"}
+            </label>
+            <input
+              value={addName}
+              onChange={(e) => { setAddName(e.target.value); setAddErr(""); }}
+              onKeyDown={(e) => e.key === "Enter" && addRule()}
+              placeholder={addType === UsageType.WEB ? "mailchimp.com" : "Photoshop"}
+              className="mt-1 w-full rounded-xl border border-gray-200 px-4 py-2.5 text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold text-gray-600">Counts as</label>
+            <select
+              value={addCategory}
+              onChange={(e) => setAddCategory(e.target.value as ActivityCategory)}
+              className="mt-1 block rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+            >
+              {CATEGORIES.map((c) => <option key={c} value={c}>{CATEGORY_LABEL[c]}</option>)}
+            </select>
+          </div>
+          <button onClick={addRule} className="rounded-xl bg-brand px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-dark">
+            Add
+          </button>
+        </div>
+        {addErr && <p className="mt-2 text-sm font-semibold text-red-600">{addErr}</p>}
+        <p className="mt-2 text-xs text-gray-400">
+          {scope
+            ? `Applies to ${scopeName} only, and overrides both the company and the group it falls in.`
+            : "Applies company-wide, and overrides the group it falls in. Pick a person above to set it for one person instead."}
+        </p>
+
+        {/* Anything added for an app nobody has opened yet would otherwise show
+            nowhere at all — it cannot appear in the activity list below, because
+            that list is built from recorded usage. Without this you would add a
+            rule, see no change anywhere, and reasonably assume it failed. */}
+        {unseenRules.length > 0 && (
+          <div className="mt-5 border-t border-gray-100 pt-4">
+            <p className="text-sm font-semibold text-gray-700">Added, but not used yet ({unseenRules.length})</p>
+            <p className="mt-0.5 text-xs text-gray-400">
+              These are saved and will apply the moment anyone opens them. They move into the list below once that happens.
+            </p>
+            <div className="mt-3 space-y-1.5">
+              {unseenRules.map((r) => (
+                <div key={r.id} className="flex items-center justify-between rounded-xl bg-gray-50 px-4 py-2.5 text-sm">
+                  <span>
+                    <span className="mr-2 text-gray-400">{r.type === UsageType.WEB ? "🌐" : "🖥"}</span>
+                    <span className="font-medium text-gray-900">{r.pattern}</span>
+                    {r.employeeId
+                      ? <span className="ml-2 rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-bold uppercase text-brand">This person</span>
+                      : scope ? <span className="ml-2 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] font-bold uppercase text-gray-500">Company</span> : null}
+                  </span>
+                  <span className="flex items-center gap-3">
+                    <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${CATEGORY_STYLE[r.category]}`}>
+                      {CATEGORY_LABEL[r.category]}
+                    </span>
+                    <button onClick={() => removeRule(r.id)} className="text-xs font-semibold text-red-500 hover:underline">Remove</button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </Card>
 
